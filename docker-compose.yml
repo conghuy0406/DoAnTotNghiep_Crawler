@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # 1. Cơ sở dữ liệu MongoDB
+  mongo:
+    image: mongo:6.0
+    container_name: crawler_mongo
+    ports:
+      - "27017:27017"  # Mở cổng để code Python bên ngoài kết nối vào
+    volumes:
+      - mongo_data:/data/db # Lưu dữ liệu để tắt Docker không bị mất
+
+  # 2. Hàng đợi Redis
+  redis:
+    image: redis:7.0
+    container_name: crawler_redis
+    ports:
+      - "6379:6379"
+
+  # 3. Giao diện quản lý MongoDB (Mongo Express) - Tặng kèm để bạn dễ xem data
+  mongo-express:
+    image: mongo-express
+    container_name: crawler_mongo_ui
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:
