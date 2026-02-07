@@ -6,9 +6,9 @@ services:
     image: mongo:6.0
     container_name: crawler_mongo
     ports:
-      - "27017:27017"  # Mở cổng để code Python bên ngoài kết nối vào
+      - "27017:27017"  
     volumes:
-      - mongo_data:/data/db # Lưu dữ liệu để tắt Docker không bị mất
+      - mongo_data:/data/db 
 
   # 2. Hàng đợi Redis
   redis:
