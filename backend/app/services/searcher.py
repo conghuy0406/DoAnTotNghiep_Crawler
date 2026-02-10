@@ -1,6 +1,7 @@
 from playwright.sync_api import sync_playwright
 import time
 import random
+import trafilatura
 from app.core.config import db
 from fastapi.concurrency import run_in_threadpool
 from app.services.analyst import extract_gold_data, calculate_average
@@ -271,4 +272,60 @@ async def search_by_config(keyword: str, selected_sources: list = None, limit: i
     configs = await db.websites.find(query).to_list(length=100)
     if not configs: return []
     data = await run_in_threadpool(run_browser_sync, configs, keyword, limit)
+    return data
+
+def crawl_single_url(url: str):
+
+    print(f"🚀 [Direct Crawl] Đang truy cập: {url}")
+    data = {}
+    
+    with sync_playwright() as p:
+        # headless=True để chạy ngầm cho nhanh, False để debug
+        browser = p.chromium.launch(headless=False) 
+        context = browser.new_context(user_agent=FAKE_USER_AGENT)
+        page = context.new_page()
+        
+        try:
+            # 1. Tải trang
+            page.goto(url, timeout=30000, wait_until="domcontentloaded")
+            
+            # 2. Lấy HTML thô
+            html_content = page.content()
+            
+            # 3. Dùng Trafilatura để "đãi cát tìm vàng"
+            # Nó sẽ tự động lọc bỏ Menu, Footer, Quảng cáo, Sidebar...
+            # include_comments=False: Bỏ phần bình luận (thường rác)
+            extracted_text = trafilatura.extract(html_content, include_comments=False, include_tables=True)
+            
+            # 4. Fallback: Nếu thư viện không lấy được (hiếm), thì lấy toàn bộ body
+            if extracted_text:
+                content = extracted_text
+                method = "Trafilatura (Smart Extract)"
+            else:
+                print("⚠️ Trafilatura không tìm thấy nội dung, chuyển sang lấy body thô.")
+                content = page.locator("body").inner_text()
+                method = "Raw Body (Fallback)"
+
+            # Lấy tiêu đề
+            title = page.title()
+            
+            data = {
+                "url": url,
+                "title": title,
+                "content": content.strip(),
+                "extraction_method": method,
+                "status": "success"
+            }
+            print(f"✅ Đã lấy được: {title[:30]}... ({len(content)} ký tự) | Method: {method}")
+            
+        except Exception as e:
+            print(f"❌ Lỗi crawl link: {e}")
+            data = {
+                "url": url,
+                "error": str(e),
+                "status": "failed"
+            }
+        finally:
+            browser.close()
+            
     return data
