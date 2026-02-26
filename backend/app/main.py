@@ -9,8 +9,8 @@ if sys.platform == "win32":
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import crawl, auth, source
-
+from app.api import crawl, auth, source, history
+from app.api import crawl, auth, source, history, bookmarks, export 
 app = FastAPI()
 
 # --- 2. CẤU HÌNH CORS ---
@@ -33,7 +33,9 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"]) 
 app.include_router(crawl.router, prefix="/api/v1", tags=["Crawl"])
 app.include_router(source.router, prefix="/api/v1/sources", tags=["Source Config"])
-
+app.include_router(history.router)
+app.include_router(bookmarks.router)
+app.include_router(export.router)
 # --- (TẠM ẨN SCHEDULER ĐỂ TEST) ---
 # @app.on_event("startup")
 # async def startup_event():

@@ -14,14 +14,11 @@ class CrawlRequest(BaseModel):
 
 @router.post("/keyword")
 async def crawl_by_keyword(payload: CrawlRequest):
-    """
-    API tìm kiếm tin tức, crawl chi tiết và dùng AI phân tích.
-    """
+
     try:
         print(f"📡 API Received: Keyword='{payload.keyword}', Sources={payload.target_sources}")
 
-        # Gọi hàm xử lý logic (Searcher + Worker + AI Analyst)
-        # Hàm này giờ trả về Dict: { "market_summary": ..., "raw_articles": ... }
+
         result_data = await search_by_config(
             keyword=payload.keyword,
             selected_sources=payload.target_sources,
