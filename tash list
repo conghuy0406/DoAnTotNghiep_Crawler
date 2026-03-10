@@ -1,0 +1,19 @@
+[33mcommit 9736e77c15f53cbce88b1a5771c7760dc172ef6a[m[33m ([m[1;35mrefs/stash[m[33m)[m
+Merge: 50426c7d a0fd0c81
+Author: HaoRaven <haoraven2003@gmail.com>
+Date:   Sat Mar 7 13:19:00 2026 +0700
+
+    WIP on backend: 50426c7d Merge branch 'backend' of https://github.com/conghuy0406/DoAnTotNghiep_Crawler into backend
+
+[33mcommit 50426c7d3c32c4b3da529ed82a2eb0f4f62b907b[m
+Merge: 98502b8b 3bfee14b
+Author: HaoRaven <haoraven2003@gmail.com>
+Date:   Fri Mar 6 10:02:25 2026 +0700
+
+    Merge branch 'backend' of https://github.com/conghuy0406/DoAnTotNghiep_Crawler into backend
+
+[33mcommit 98502b8b998698c70792130f6b3049e2de1b6936[m
+Author: HaoRaven <haoraven2003@gmail.com>
+Date:   Fri Mar 6 09:58:46 2026 +0700
+
+    Fix merge conflicts and update backend configuration

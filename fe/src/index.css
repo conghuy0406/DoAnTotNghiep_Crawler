@@ -1,0 +1,9 @@
+@import "tailwindcss"; /* Chỉ cần dòng này thay cho 3 dòng @tailwind cũ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+/* Các style khác của bạn giữ nguyên */
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
