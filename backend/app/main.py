@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from fastapi.concurrency import run_in_threadpool
 # ------------------------------------------------
-
+from bs4 import BeautifulSoup
 app = FastAPI()
 
 # --- 2. CẤU HÌNH CORS ---
@@ -292,24 +292,23 @@ async def test_smart_auto(payload: SmartUrlPayload):
 
 
 # =====================================================================
-# 6. BỘ CÔNG CỤ CRAWL ĐA NĂNG MỚI (CHUNG 1 API - THEO YÊU CẦU CỦA THẦY)
-# Tích hợp truyền Keyword trực tiếp
+# 6. BỘ CÔNG CỤ CRAWL ĐA NĂNG MỚI (KIẾN TRÚC RAW DATA FETCHING)
+# Backend làm phu khuân vác, Frontend làm phiên dịch
 # =====================================================================
-from bs4 import BeautifulSoup
+
 
 class UniversalCrawlPayload(BaseModel):
-    method: str  # Bắt buộc: "HTML", "API", "SELENIUM", "REGEX"
-    url_template: str  # VD: "https://example.com/search?q={query}"
+    method: str  # "HTML", "API", "SELENIUM", "REGEX"
+    url_template: str  
     keyword: str
     
-    # Dành cho HTML & Selenium
-    post_item_sel: Optional[str] = None
-    title_sel: Optional[str] = None
+    # Chỉ cần selector của KHUNG BAO BỌC bên ngoài (Item wrapper)
+    post_item_sel: Optional[str] = None 
     
     # Dành cho Regex
     regex_pattern: Optional[str] = None
 
-# 2. TRẠM ĐIỀU PHỐI (DISPATCHER LÕI) - CHẾ ĐỘ BIỂU DIỄN (DEMO MODE)
+# TRẠM ĐIỀU PHỐI - CHẾ ĐỘ LẤY DỮ LIỆU THÔ (RAW DATA)
 def execute_universal_crawl(payload: UniversalCrawlPayload):
     method = payload.method.upper()
     encoded_kw = urllib.parse.quote_plus(payload.keyword)
@@ -317,69 +316,70 @@ def execute_universal_crawl(payload: UniversalCrawlPayload):
     results = []
 
     try:
-        # --- CÁCH 1: HTML PARSING (Chạy nền, vì cách này không dùng trình duyệt) ---
+        # --- CÁCH 1: HTML PARSING ---
         if method == "HTML":
             res = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
             soup = BeautifulSoup(res.text, "html.parser")
+            
+            if not payload.post_item_sel:
+                return {"error": "Thiếu post_item_sel để khoanh vùng dữ liệu HTML."}
+                
             items = soup.select(payload.post_item_sel)
-            for item in items[:5]:
-                t_el = item.select_one(payload.title_sel)
-                if t_el:
-                    t = t_el.get_text(strip=True)
-                    u = t_el.get("href", "")
-                    if u and not u.startswith("http"):
-                        u = "https://" + urllib.parse.urlparse(target_url).netloc + u
-                    results.append({"title": t, "url": u})
+            for item in items[:5]: # Lấy thử 5 khối đầu tiên
+                # BÊ NGUYÊN ĐOẠN HTML THÔ TRẢ VỀ CHO FRONTEND
+                results.append({"raw_html_chunk": str(item)})
 
-        # --- CÁCH 2: API REQUESTS (Chạy nền) ---
+        # --- CÁCH 2: API REQUESTS ---
         elif method == "API":
             res = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
             if res.status_code == 200:
-                results = auto_extract_json(res.json())[:5]
+                # TRẢ VỀ NGUYÊN CỤC JSON GỐC
+                return {
+                    "status": "success", 
+                    "method_used": method,
+                    "keyword": payload.keyword,
+                    "data": res.json() 
+                }
             else:
                 return {"error": f"API lỗi HTTP {res.status_code}"}
 
-        # --- CÁCH 3: SELENIUM / PLAYWRIGHT (CHẾ ĐỘ BIỂU DIỄN MỞ TRÌNH DUYỆT) ---
+        # --- CÁCH 3: SELENIUM / PLAYWRIGHT (CHẾ ĐỘ BIỂU DIỄN) ---
         elif method == "SELENIUM":
-            with sync_playwright() as p:
-                # BẬT HEADLESS=FALSE ĐỂ HIỆN TRÌNH DUYỆT
-                # slow_mo=800: Làm chậm mỗi thao tác của Bot đi 0.8 giây để khán giả kịp nhìn
-                browser = p.chromium.launch(headless=False, slow_mo=800) 
+            if not payload.post_item_sel:
+                return {"error": "Thiếu post_item_sel để khoanh vùng dữ liệu web động."}
                 
-                # Mở trình duyệt với kích thước to rõ ràng để quay video
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=False, slow_mo=500) 
                 context = browser.new_context(viewport={'width': 1280, 'height': 720})
                 page = context.new_page()
                 
-                # Bước 1: Mở trang web
                 page.goto(target_url, wait_until="domcontentloaded", timeout=20000)
-                page.wait_for_timeout(2000) # Nghỉ 2 giây cho khán giả nhìn trang web
+                page.wait_for_timeout(2000)
                 
-                # Bước 2: Biểu diễn cuộn chuột từ từ xuống dưới (Giống người thật)
                 for _ in range(3):
                     page.evaluate("window.scrollBy(0, 500)")
-                    page.wait_for_timeout(1000) # Đợi 1 giây mỗi lần cuộn
+                    page.wait_for_timeout(1000)
                 
-                # Bước 3: Thu thập dữ liệu
                 items = page.locator(payload.post_item_sel).all()
                 for item in items[:5]:
-                    t_el = item.locator(payload.title_sel).first
-                    if t_el.count() > 0:
-                        t = t_el.inner_text().strip()
-                        u = t_el.get_attribute("href")
-                        if u and not u.startswith("http"):
-                            u = "https://" + urllib.parse.urlparse(target_url).netloc + u
-                        results.append({"title": t, "url": u})
+                    # Dùng JS nội bộ để moi nguyên đoạn mã HTML (outerHTML) của cái khung đó ra
+                    raw_html = item.evaluate("el => el.outerHTML")
+                    results.append({"raw_html_chunk": raw_html})
                         
-                # Giữ nguyên trình duyệt thêm 3 giây trước khi đóng để bạn kịp tắt máy quay
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(2000)
                 browser.close()
 
         # --- CÁCH 4: BIỂU THỨC CHÍNH QUY (REGEX) ---
         elif method == "REGEX":
+            if not payload.regex_pattern:
+                return {"error": "Thiếu biểu thức regex_pattern."}
+                
             html_text = requests.get(target_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10).text
             matches = re.findall(payload.regex_pattern, html_text)
+            
             for match in matches[:5]:
-                results.append({"match_data": match})
+                # Trả về chuỗi Text đã bị cắt
+                results.append({"raw_text_match": match})
 
         else:
             return {"error": "Phương pháp không hợp lệ! Vui lòng chọn HTML, API, SELENIUM, hoặc REGEX."}
