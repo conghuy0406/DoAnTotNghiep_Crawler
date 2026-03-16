@@ -14,4 +14,4 @@ redis_client = redis.Redis(host='localhost', port=6379, decode_responses=True)
 SECRET_KEY = "doantotnghiep_sieu_bao_mat_2024" # Thực tế nên để chuỗi ngẫu nhiên dài
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 # Token hết hạn sau 30 phút
-GOOGLE_API_KEY="AIzaSyDzqxRk6QhSeQQ3stRqbjTil6DiTVTjzTo"
+GOOGLE_API_KEY="AIzaSyBCj3OdJjs4Q6IqWU6af2TroaVpZd-FjEo"
