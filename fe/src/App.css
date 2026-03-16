@@ -1,0 +1,27 @@
+/* Phải để dòng này trên cùng */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-gold-glow: rgba(234, 179, 8, 0.5);
+}
+
+body {
+  margin: 0;
+  background-color: #121212;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Hiệu ứng nhấp nháy cho con rồng và radar */
+@keyframes dragon-glow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(234, 179, 8, 0.4)); }
+  50% { filter: drop-shadow(0 0 25px rgba(234, 179, 8, 0.8)); }
+}
+
+.dragon-style {
+  animation: dragon-glow 3s infinite ease-in-out;
+}
+body {
+  margin: 0;
+  background-color: #f8fafc; /* Màu nền sáng mới */
+}
