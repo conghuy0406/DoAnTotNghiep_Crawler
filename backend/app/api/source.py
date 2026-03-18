@@ -7,18 +7,13 @@ from datetime import datetime
 
 router = APIRouter()
 
-# ==========================================
-# SCHEMA DỮ LIỆU
-# ==========================================
 class SourceConfig(BaseModel):
-    name: str              # Tên báo (VD: Kenh14)
-    base_url: str          # VD: https://kenh14.vn
-    search_url_template: str # VD: https://kenh14.vn/tim-kiem.chn?keywords={keyword}
+    name: str              
+    base_url: str         
+    search_url_template: str 
     
-    # (MỚI) Thêm cờ trạng thái để bật/tắt nguồn tạm thời
     is_active: bool = True 
     
-    # Bộ chọn CSS mặc định
     selectors: Dict[str, str] = {
         "post_item": "h3.knswli-title", 
         "title_link": "a",              
@@ -34,9 +29,7 @@ class SourceConfigUpdate(BaseModel):
     is_active: Optional[bool] = None
     selectors: Optional[Dict[str, str]] = None
 
-# ==========================================
-# CÁC API ENDPOINTS
-# ==========================================
+
 
 @router.post("/")
 async def create_source(source: SourceConfig):
@@ -56,7 +49,6 @@ async def get_sources(active_only: bool = False):
     sources = await db.websites.find(query).to_list(length=100)
     return sources
 
-# (MỚI) Lấy thông tin chi tiết 1 nguồn để đổ lên form khi Sửa
 @router.get("/{source_id}")
 async def get_source_detail(source_id: str):
     source = await db.websites.find_one({"_id": source_id})
@@ -67,8 +59,7 @@ async def get_source_detail(source_id: str):
 # (MỚI) Cập nhật nguồn (PUT)
 @router.put("/{source_id}")
 async def update_source(source_id: str, source_update: SourceConfigUpdate):
-    """Cập nhật thông tin nguồn (VD: Cập nhật CSS khi web đổi giao diện)"""
-    # Lọc bỏ các trường None (người dùng không gửi lên)
+
     update_data = {k: v for k, v in source_update.dict(exclude_unset=True).items() if v is not None}
     
     if not update_data:
@@ -88,7 +79,6 @@ async def update_source(source_id: str, source_update: SourceConfigUpdate):
 
 @router.delete("/{source_id}")
 async def delete_source(source_id: str):
-    """Xóa nguồn"""
     result = await db.websites.delete_one({"_id": source_id})
     if result.deleted_count == 0:
          raise HTTPException(status_code=404, detail="Không tìm thấy nguồn báo này")

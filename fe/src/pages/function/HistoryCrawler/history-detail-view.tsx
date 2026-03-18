@@ -8,6 +8,7 @@ const HistoryDetailView: React.FC = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -17,9 +18,13 @@ const HistoryDetailView: React.FC = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        // Hào nhìn vào Console F12 để xem thực tế BE trả về key tên là gì nhé
         console.log("Dữ liệu thực tế từ BE:", response.data);
         setData(response.data);
+        
+        // Kiểm tra trạng thái bookmark từ DB
+        if (response.data?.is_bookmarked) {
+          setIsBookmarked(true);
+        }
       } catch (error) {
         console.error("Lỗi lấy chi tiết:", error);
       } finally {
@@ -29,28 +34,36 @@ const HistoryDetailView: React.FC = () => {
     fetchDetail();
   }, [id]);
 
+  // Hàm xử lý Bookmark kết nối với API POST /bookmarks/{id}
+  const handleBookmark = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      // Gọi đúng API như trong Swagger Hào đã test
+      await axios.post(`http://localhost:8000/api/v1/bookmarks/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setIsBookmarked(true);
+      alert("Đã thêm báo cáo này vào mục yêu thích!");
+    } catch (error) {
+      console.error("Lỗi Bookmark:", error);
+      alert("Không thể thực hiện đánh dấu yêu thích.");
+    }
+  };
+
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-[#F8F9FF]">
-       <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
     </div>
   );
 
-  // --- PHẦN QUAN TRỌNG: TỰ ĐỘNG "MÒ" DỮ LIỆU ---
-  // Hào không sửa BE thì FE phải tự tìm các tên biến phổ biến như summary, ai_summary, analysis...
-  const aiSummary = 
-    data?.ai_summary || 
-    data?.analysis?.summary || 
-    data?.summary || 
-    data?.analysis_result ||
-    "Không tìm thấy nội dung phân tích trong bản ghi này.";
-
-  const articlesList = 
-    data?.articles || 
-    data?.analysis?.articles || 
-    data?.data_sources || 
-    [];
-
-  const keyword = data?.keyword || "N/A";
+  // --- MAPPING DỮ LIỆU ---
+  const aiSummary = data?.summary || data?.ai_summary || "Không có tóm tắt.";
+  const articlesList = data?.articles || data?.data_sources || [];
+  const structuredData = data?.structured_data || [];
+  const highlights = data?.key_highlights || [];
+  const excluded = data?.excluded_topics || [];
+  const sentiment = data?.sentiment || "Trung lập";
 
   return (
     <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
@@ -60,88 +73,142 @@ const HistoryDetailView: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-6 md:p-10 pt-8 custom-scrollbar">
           <div className="max-w-5xl mx-auto space-y-8 pb-20">
             
-            {/* Nút quay lại */}
-            <button 
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 font-bold text-[10px] uppercase tracking-widest transition-all"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"></path></svg>
-              Trở về danh sách
-            </button>
+            {/* TOP BAR: Quay lại & Bookmark */}
+            <div className="flex justify-between items-center">
+              <button 
+                onClick={() => navigate(-1)}
+                className="flex items-center gap-2 text-slate-400 hover:text-indigo-600 font-bold text-[10px] uppercase tracking-widest transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"></path></svg>
+                Trở về danh sách
+              </button>
 
-            {/* Header thông tin đợt cào */}
+              <button 
+                onClick={handleBookmark}
+                disabled={isBookmarked}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest transition-all shadow-sm border ${
+                  isBookmarked 
+                  ? 'bg-amber-50 text-amber-600 border-amber-200 cursor-default' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-500 hover:text-white hover:border-amber-500'
+                }`}
+              >
+                <svg className="w-4 h-4" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.382-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+                {isBookmarked ? "Đã Lưu" : "Lưu Yêu Thích"}
+              </button>
+            </div>
+
+            {/* HEADER BLOCK */}
             <div className="bg-white p-10 rounded-[40px] border border-slate-100 shadow-sm">
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-black uppercase tracking-wider">
-                    {data?.sentiment || 'Đã phân tích'}
+                  <span className={`px-3 py-1 border rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    sentiment === 'Tích cực' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                    sentiment === 'Tiêu cực' ? 'bg-rose-50 text-rose-600 border-rose-100' : 
+                    'bg-slate-50 text-slate-500 border-slate-100'
+                  }`}>
+                    {sentiment}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-300">ID: {id}</span>
+                  <span className="px-3 py-1 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-full text-[10px] font-black uppercase tracking-wider">
+                    {data?.category || 'General'}
+                  </span>
                 </div>
                 <h1 className="text-4xl font-black text-slate-800 uppercase tracking-tighter italic">
-                  Từ khóa: <span className="text-indigo-600">{keyword}</span>
+                  Từ khóa: <span className="text-indigo-600">{data?.keyword || "N/A"}</span>
                 </h1>
                 <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-                  Thực hiện lúc: {new Date(data?.created_at).toLocaleString('vi-VN')}
+                  Thực hiện lúc: {data?.created_at ? new Date(data.created_at).toLocaleString('vi-VN') : 'N/A'}
                 </p>
               </div>
             </div>
 
-            {/* BOX 1: HIỂN THỊ PHÂN TÍCH AI */}
+            {/* STRUCTURED DATA GRID */}
+            {structuredData.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {structuredData.map((item: any, idx: number) => (
+                  <div key={idx} className="bg-white p-6 rounded-[30px] border border-slate-100 shadow-sm hover:border-indigo-100 transition-all">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{item.label}</p>
+                    <p className="text-lg font-black text-indigo-600 leading-tight">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* HIGHLIGHTS & EXCLUSIONS */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 bg-indigo-600 p-8 rounded-[40px] text-white shadow-xl shadow-indigo-100">
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] mb-6 opacity-80">Key Highlights</h3>
+                <ul className="space-y-4">
+                  {highlights.length > 0 ? highlights.map((point: string, idx: number) => (
+                    <li key={idx} className="flex gap-4 text-sm font-semibold leading-relaxed">
+                      <span className="text-indigo-300">#0{idx + 1}</span>
+                      {point}
+                    </li>
+                  )) : <li className="italic opacity-50">Không có dữ liệu tiêu điểm.</li>}
+                </ul>
+              </div>
+
+              <div className="bg-white p-8 rounded-[40px] border border-slate-100 flex flex-col">
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400 mb-6">Lọc nhiễu AI</h3>
+                <div className="flex flex-wrap gap-2">
+                  {excluded.length > 0 ? excluded.map((topic: string, idx: number) => (
+                    <span key={idx} className="px-3 py-2 bg-slate-50 text-slate-500 rounded-2xl text-[10px] font-bold border border-slate-100">
+                      ✕ {topic}
+                    </span>
+                  )) : <p className="text-slate-300 italic text-[10px]">Không có chủ đề bị loại bỏ.</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* AI SUMMARY BOX */}
             <div className="bg-slate-900 p-10 rounded-[40px] shadow-2xl text-white relative overflow-hidden">
               <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="p-2 bg-indigo-500 rounded-xl">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                   </div>
-                  <h2 className="text-xl font-black uppercase italic tracking-tight">AI Summary Archive</h2>
+                  <h2 className="text-xl font-black uppercase italic tracking-tight">AI Summary Analysis</h2>
                 </div>
-                {/* Dùng whitespace-pre-line để giữ các dấu xuống dòng của AI */}
                 <p className="text-slate-300 leading-relaxed font-medium text-lg italic border-l-4 border-indigo-500 pl-6 whitespace-pre-line">
                   {aiSummary}
                 </p>
               </div>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
             </div>
 
-            {/* BOX 2: DANH SÁCH BÀI BÁO (LINKS) */}
+            {/* SOURCES LIST */}
             <div className="space-y-6">
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">
-                  Danh sách nguồn ({articlesList.length})
-                </h3>
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Nguồn tin tham khảo ({articlesList.length})</h3>
                 <div className="h-px flex-1 bg-slate-100 mx-6"></div>
               </div>
               
               <div className="grid grid-cols-1 gap-4">
                 {articlesList.length > 0 ? articlesList.map((article: any, index: number) => (
-                  <div key={index} className="bg-white p-6 rounded-[30px] border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm hover:shadow-md">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div key={index} className="bg-white p-6 rounded-[30px] border border-slate-100 hover:border-indigo-200 transition-all group shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-2">
                           <span className="text-[9px] font-black text-indigo-500 uppercase">#{index + 1}</span>
-                          <span className="text-[9px] font-bold text-slate-300 uppercase italic">Source: {article.source || "Unknown"}</span>
+                          <span className="text-[9px] font-bold text-slate-300 uppercase italic">| {article.source || "Web Search"}</span>
                         </div>
-                        <h4 className="font-bold text-slate-800 text-lg leading-tight group-hover:text-indigo-600">
+                        <h4 className="font-bold text-slate-800 text-lg leading-tight group-hover:text-indigo-600 transition-colors">
                           {article.title}
                         </h4>
-                        <p className="text-sm text-slate-400 mt-1 line-clamp-1">{article.description || article.url}</p>
                       </div>
                       <a 
                         href={article.url} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="px-6 py-3 bg-slate-50 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0"
+                        className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg shrink-0"
                       >
-                        Visit Link
+                        Đọc bài gốc
                       </a>
                     </div>
                   </div>
                 )) : (
-                  <div className="text-center py-20 bg-slate-50 rounded-[40px] border-2 border-dashed border-slate-200">
-                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">
-                      Dữ liệu bài báo không tồn tại trong bản ghi này.
-                    </p>
+                  <div className="text-center py-10 bg-slate-50 rounded-[40px] border border-dashed border-slate-200">
+                    <p className="text-slate-400 font-bold uppercase text-[10px]">Không tìm thấy danh sách bài báo.</p>
                   </div>
                 )}
               </div>
