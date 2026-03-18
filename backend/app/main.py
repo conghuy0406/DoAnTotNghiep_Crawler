@@ -44,21 +44,14 @@ app.include_router(source.router, prefix="/api/v1/sources", tags=["Source Config
 app.include_router(history.router)
 app.include_router(bookmarks.router)
 app.include_router(export.router)
-# --- (TẠM ẨN SCHEDULER ĐỂ TEST) ---
-# @app.on_event("startup")
-# async def startup_event():
-#     from app.services.scheduler import start_scheduler
-#     start_scheduler()
+
 
 @app.get("/")
 async def root():
     return {"message": "Backend API is Ready (Fixed Windows 100%)!"}
 
 
-# =====================================================================
-# CÁC CHỨC NĂNG CRAWL TÁCH BIỆT (MỖI PHƯƠNG PHÁP 1 API RIÊNG)
-# Dùng để Test thử nghiệm trong Admin Panel
-# =====================================================================
+
 
 # --- HÀM BỔ TRỢ: Tự động bóc JSON ---
 def auto_extract_json(data):
@@ -75,9 +68,6 @@ def auto_extract_json(data):
     search_d(data)
     return found
 
-# ---------------------------------------------------------
-# 1. CHỨC NĂNG CRAWL BẰNG API TRỰC TIẾP
-# ---------------------------------------------------------
 class ApiPayload(BaseModel):
     api_url: str
     api_method: str = "GET"
@@ -92,7 +82,17 @@ def run_api_crawl(data: ApiPayload):
             res = requests.get(data.api_url, headers=data.headers, timeout=10)
         
         if res.status_code == 200:
-            return {"status": "success", "data": auto_extract_json(res.json())[:5]}
+            raw_json = res.json()
+            extracted_data = auto_extract_json(raw_json)[:5]
+            
+            # KẾ HOẠCH DỰ PHÒNG (FALLBACK):
+            # Nếu bóc tách được bài viết/link -> Trả về dữ liệu đã bóc (Giữ nguyên bài cũ)
+            if len(extracted_data) > 0:
+                return {"status": "success", "data": extracted_data}
+            # Nếu không tìm thấy bài viết nào (như API thời tiết) -> Trả về JSON gốc
+            else:
+                return {"status": "success", "data": raw_json}
+                
         return {"error": f"Lỗi HTTP {res.status_code}"}
     except Exception as e:
         return {"error": str(e)}
