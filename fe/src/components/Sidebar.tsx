@@ -29,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
       name: 'Chức Năng', isDropdown: true, icon: 'M4 6h16M4 12h16M4 18h7',subItems: [
         { name: 'Crawler Data Nguồn', path: '/crawler-data' }, 
         { name: 'Crawler Nội Dung', path: '/crawler-content' }, 
+        { name: 'Test Crawl (5 API)', path: '/admin/test-crawler' }, // <--- THÊM MENU TEST CRAWL VÀO ĐÂY
         { name: 'Lịch Trình', path: '/schedule' }
       ]
     },

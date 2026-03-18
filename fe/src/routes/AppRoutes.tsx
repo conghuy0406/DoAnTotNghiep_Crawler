@@ -8,12 +8,10 @@ import CrawlerContentView from '../pages/function/CrawlerContent/crawler-content
 import HistoryCrawlerView from '../pages/function/HistoryCrawler/history-crawler-view';
 import HistoryDetailView from '../pages/function/HistoryCrawler/history-detail-view';
 import ExportExcelView from '../pages/function/ExportExcel/export-excel-view'; 
-
-
 import FavoritesDetailView from '../pages/function/Favorites/favorites-detail-view';
 
-
-
+// --- BƯỚC 1: THÊM IMPORT GIAO DIỆN TEST CRAWL VÀO ĐÂY ---
+import TestCrawlerView from '../pages/function/TestCrawler/test-crawler-view';
 
 const AppRoutes = () => {
   const token = localStorage.getItem('token');
@@ -49,6 +47,12 @@ const AppRoutes = () => {
         element={isAuthenticated ? <CrawlerContentView /> : <Navigate to="/login" replace />} 
       />
 
+      {/* --- BƯỚC 2: KHAI BÁO ROUTE CHO TEST CRAWL --- */}
+      <Route 
+        path="/admin/test-crawler" 
+        element={isAuthenticated ? <TestCrawlerView /> : <Navigate to="/login" replace />} 
+      />
+
       {/* Quản lý Lịch sử */}
       <Route 
         path="/history" 
@@ -59,13 +63,13 @@ const AppRoutes = () => {
         element={isAuthenticated ? <HistoryDetailView /> : <Navigate to="/login" replace />} 
       />
 
-      {/* THÊM MỚI: Route Xuất dữ liệu Excel */}
+      {/* Route Xuất dữ liệu Excel */}
       <Route 
         path="/export-excel" 
         element={isAuthenticated ? <ExportExcelView /> : <Navigate to="/login" replace />} 
       />
 
-      {/* DỰ PHÒNG: Route Cài đặt (Nếu Hào đã có page này) */}
+      {/* DỰ PHÒNG: Route Cài đặt */}
       <Route 
         path="/settings" 
         element={isAuthenticated ? <div className="text-white ml-64 p-10">Setting Page (Coming Soon)</div> : <Navigate to="/login" replace />} 
@@ -76,11 +80,12 @@ const AppRoutes = () => {
         path="/dashboard" 
         element={isAuthenticated && isAdmin ? <Dashboard /> : <Navigate to="/home" replace />} 
       />
+      
+      {/* ĐÃ FIX: Chỗ này lúc trước là <Navigate to="/favorites" replace /> gây lỗi vòng lặp */}
       <Route 
         path="/favorites" 
-        element={isAuthenticated ? <FavoritesDetailView /> : <Navigate to="/favorites" replace />} 
+        element={isAuthenticated ? <FavoritesDetailView /> : <Navigate to="/login" replace />} 
       />
-      
 
       {/* Mặc định đẩy về trang chủ phù hợp */}
       <Route path="*" element={<Navigate to="/" replace />} />
