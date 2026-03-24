@@ -55,7 +55,79 @@ const TestCrawlerView: React.FC = () => {
             setLoading(false);
         }
     };
+    // ==================================================
+    // HÀM MỚI: LƯU CẤU HÌNH XUỐNG DATABASE
+    // ==================================================
+    const handleSaveConfig = async () => {
+        const sourceName = prompt("Nhập tên cho Nguồn cào này (VD: Báo Dân Trí - Tin Mới):");
+        if (!sourceName) return; // Người dùng bấm Hủy
 
+        try {
+            // 1. Lấy URL đang test (nếu là Tab API thì dùng apiUrl, còn lại dùng url chung)
+            const currentUrl = activeTab === 'API' ? apiUrl : url;
+            if (!currentUrl) {
+                alert("Vui lòng nhập đường dẫn Web/API trước khi lưu!");
+                return;
+            }
+
+            // 2. Tách lấy base_url
+            let baseUrl = "https://unknown.com";
+            try {
+                baseUrl = new URL(currentUrl).origin;
+            } catch (e) {
+                console.warn("URL không đúng định dạng chuẩn");
+            }
+
+            // 3. Xác định Phương pháp Cào (Mapping với Backend)
+            let method = "HTML";
+            if (activeTab === 'API') method = "API";
+            if (activeTab === 'REGEX') method = "REGEX";
+            if (activeTab === 'BROWSER') method = "SELENIUM"; // Backend lưu là SELENIUM
+            if (activeTab === 'HTML') method = "HTML";
+            if (activeTab === 'SMART') method = "SMART_AUTO";
+
+            // 4. Gói dữ liệu theo đúng chuẩn SourceConfig của Backend (file source.py)
+            const payload = {
+                name: sourceName,
+                base_url: baseUrl,
+                search_url_template: currentUrl,
+                is_active: true,
+                crawl_method: method,
+                
+                selectors: {
+                    post_item: postItemSel || "",
+                    title_link: titleSel || ""
+                },
+                regex_pattern: regexPattern || "",
+                api_config: {
+                    method: apiMethod || "GET",
+                    headers: {},
+                    body: {}
+                }
+            };
+
+            // 5. Gọi API POST lưu xuống Database
+            // Đảm bảo URL này khớp với port Backend của bạn (thường là 8000)
+            const response = await fetch("http://localhost:8000/api/v1/sources/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert("🎉 " + result.message);
+            } else {
+                alert("❌ Lỗi: " + (result.detail || "Không thể lưu cấu hình"));
+            }
+        } catch (error) {
+            console.error("Lỗi khi lưu cấu hình:", error);
+            alert("❌ Đã có lỗi xảy ra khi kết nối với máy chủ!");
+        }
+    };
     // Style dùng chung để code đỡ rối
     const inputStyle = { width: '100%', padding: '10px', marginBottom: '15px', border: '1px solid #d9d9d9', borderRadius: '4px', boxSizing: 'border-box' as const };
     const labelStyle = { display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#333' };
@@ -138,17 +210,30 @@ const TestCrawlerView: React.FC = () => {
                             </div>
                         )}
 
-                        {/* NÚT SUBMIT */}
-                        <button 
-                            onClick={handleExecute} 
-                            disabled={loading}
-                            style={{ 
-                                width: '100%', padding: '12px', fontSize: '16px', fontWeight: 'bold',
-                                backgroundColor: loading ? '#ccc' : '#52c41a', color: '#fff', 
-                                border: 'none', borderRadius: '4px', cursor: loading ? 'not-allowed' : 'pointer' 
-                            }}>
-                            {loading ? '⏳ HỆ THỐNG ĐANG CÀO DỮ LIỆU...' : '🚀 CHẠY KIỂM THỬ GIAO THỨC'}
-                        </button>
+                        {/* NÚT SUBMIT VÀ NÚT LƯU */}
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '16px' }}>
+                            <button 
+                                onClick={handleExecute} 
+                                disabled={loading}
+                                style={{ 
+                                    flex: 1, padding: '12px', fontSize: '16px', fontWeight: 'bold',
+                                    backgroundColor: loading ? '#ccc' : '#52c41a', color: '#fff', 
+                                    border: 'none', borderRadius: '4px', cursor: loading ? 'not-allowed' : 'pointer' 
+                                }}>
+                                {loading ? '⏳ ĐANG XỬ LÝ...' : '🚀 CHẠY KIỂM THỬ GIAO THỨC'}
+                            </button>
+
+                            <button 
+                                onClick={handleSaveConfig} 
+                                disabled={loading}
+                                style={{ 
+                                    flex: 1, padding: '12px', fontSize: '16px', fontWeight: 'bold',
+                                    backgroundColor: loading ? '#ccc' : '#1890ff', color: '#fff', 
+                                    border: 'none', borderRadius: '4px', cursor: loading ? 'not-allowed' : 'pointer' 
+                                }}>
+                                💾 LƯU CẤU HÌNH NÀY
+                            </button>
+                        </div>
                     </div>
 
                     {/* CỘT PHẢI: KẾT QUẢ HIỂN THỊ */}

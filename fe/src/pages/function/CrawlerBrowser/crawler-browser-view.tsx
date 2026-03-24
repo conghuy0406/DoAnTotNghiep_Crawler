@@ -5,6 +5,8 @@ import {
   Layout, Globe, Crosshair, Loader2, Play, 
   Copy, Trash2, FileText, ChevronRight, Search 
 } from 'lucide-react';
+// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API (Đảm bảo bạn đã tạo file này như hướng dẫn trước)
+import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
 const BrowserCrawlerView: React.FC = () => {
   const [url, setUrl] = useState('https://vnexpress.net/so-hoa/ai');
@@ -13,14 +15,16 @@ const BrowserCrawlerView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
 
-  // ✅ CẬP NHẬT ENDPOINT ĐÚNG THEO BACKEND CỦA HÀO
+  // ==================================================
+  // 1. HÀM CHẠY KIỂM THỬ BROWSER
+  // ==================================================
   const handleExecute = async () => {
     setLoading(true);
     setResults([]);
     try {
       const token = localStorage.getItem('token');
       // Đổi từ /browser sang /execute-universal cho đúng route BE
-      const res = await axios.post('http://localhost:8000/api/v1/crawl-test/execute-universal', {
+      const res = await axios.post('http://localhost:8000/api/v1/crawl-test/browser', {
         url: url,
         crawl_method: 'BROWSER', // BE của Hào nhận tham số này để switch logic
         post_item_sel: postItemSel,
@@ -30,7 +34,7 @@ const BrowserCrawlerView: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // ✅ Kiểm tra cấu trúc response { status: "success", data: [...] }
+      // Kiểm tra cấu trúc response { status: "success", data: [...] }
       if (res.data && res.data.status === "success") {
         setResults(res.data.data || []); 
       } else {
@@ -42,6 +46,25 @@ const BrowserCrawlerView: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ==================================================
+  // 2. HÀM LƯU CẤU HÌNH (MỚI THÊM)
+  // ==================================================
+  const handleSaveConfig = () => {
+    let baseUrl = "https://unknown.com";
+    try { baseUrl = new URL(url).origin; } catch (e) {}
+
+    // Gọi hàm dùng chung để gửi data sang Backend
+    saveSourceConfigToServer({
+      base_url: baseUrl,
+      search_url_template: url,
+      crawl_method: "SELENIUM", // BE lưu Browser là SELENIUM
+      selectors: {
+        post_item: postItemSel || "",
+        title_link: titleSel || ""
+      }
+    });
   };
 
   const copyToClipboard = () => {
@@ -123,13 +146,25 @@ const BrowserCrawlerView: React.FC = () => {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleExecute} disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-[22px] transition-all flex items-center justify-center gap-3 shadow-xl shadow-blue-100 disabled:opacity-50 active:scale-95"
-                >
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Play className="w-6 h-6 fill-current" />}
-                  <span className="tracking-widest uppercase text-sm">{loading ? "ĐANG QUÉT..." : "THỰC THI BROWSER"}</span>
-                </button>
+                {/* ✅ HAI NÚT NẰM NGANG Ở ĐÂY */}
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleExecute} disabled={loading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-blue-100 disabled:opacity-50 active:scale-95"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                    <span className="tracking-widest uppercase text-[12px]">{loading ? "ĐANG QUÉT..." : "THỰC THI"}</span>
+                  </button>
+
+                  <button 
+                    onClick={handleSaveConfig} disabled={loading}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 disabled:opacity-50 active:scale-95"
+                  >
+                    <span className="text-lg">💾</span>
+                    <span className="tracking-widest uppercase text-[12px]">LƯU CẤU HÌNH</span>
+                  </button>
+                </div>
+
               </div>
 
               <div className="bg-blue-50/50 border border-blue-100 p-6 rounded-[30px]">

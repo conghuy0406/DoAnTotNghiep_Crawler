@@ -14,8 +14,10 @@ import CrawlerApiView from '../pages/function/CrawlerApi/crawler-api-view';
 import RegexTestView from '../pages/function/CrawlerRegex/crawler-regex-view'; 
 import BrowserCrawlerView from '../pages/function/CrawlerBrowser/crawler-browser-view'; 
 import FavoritesDetailView from '../pages/function/Favorites/favorites-detail-view';
-
 import SmartAutoView from '../pages/function/CrawlerAuto/crawler-auto-view';
+
+// 🌟 THÊM IMPORT CHO TRANG QUẢN LÝ NGUỒN Ở ĐÂY
+import SourceManagerView from '../pages/function/SourceManager/source-manager-view'; 
 
 const AppRoutes = () => {
   const token = localStorage.getItem('token');
@@ -78,6 +80,12 @@ const AppRoutes = () => {
         element={isAuthenticated ? <BrowserCrawlerView /> : <Navigate to="/login" replace />} 
       />
 
+      {/* 🌟 5d. QUẢN LÝ NGUỒN CÀO (THÊM MỚI Ở ĐÂY) */}
+      <Route 
+        path="/sources" 
+        element={isAuthenticated ? <SourceManagerView /> : <Navigate to="/login" replace />} 
+      />
+
       {/* 6. QUẢN LÝ LỊCH SỬ */}
       <Route 
         path="/history" 
@@ -111,7 +119,7 @@ const AppRoutes = () => {
         path="/dashboard" 
         element={isAuthenticated && isAdmin ? <Dashboard /> : <Navigate to="/home" replace />} 
       />
-
+      
       {/* 11. MẶC ĐỊNH */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -26,7 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
     }
   }, [location.pathname, shouldOpenDropdown]);
 
-  const menuItems = [
+const menuItems = [
     { 
       name: 'Trang Chủ', 
       path: '/home', 
@@ -37,18 +37,25 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage }) => {
       isDropdown: true, 
       icon: 'M4 6h16M4 12h16M4 18h7',
       subItems: [
-        { name: 'Smart Auto', path: '/smart-auto' }, //
-        { name: 'Crawler HTML', path: '/crawler-html' }, //
-        // { name: 'Crawler Nội Dung', path: '/crawler-content' }, 
+        { name: 'Smart Auto', path: '/smart-auto' }, 
+        { name: 'Crawler HTML', path: '/crawler-html' }, 
         { name: 'Crawler API', path: '/crawler-api' },
         { name: 'Crawler Regex', path: '/crawler-regex' },
-        { name: 'Crawler Browser', path: '/crawler-browser' } //
+        { name: 'Crawler Browser', path: '/crawler-browser' } 
       ]
     },
     { 
       name: 'Yêu Thích', 
       path: '/favorites',
       icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' 
+    },
+    // ==========================================
+    // THÊM MỚI: QUẢN LÝ NGUỒN CÀO (SOURCE MANAGER)
+    // ==========================================
+    { 
+      name: 'Quản Lý Nguồn', 
+      path: '/sources', 
+      icon: 'M4 7v10c0 2 3.58 4 8 4s8-2 8-4V7M4 7c0 2 3.58 4 8 4s8-2 8-4M4 7c0-2 3.58-4 8-4s8 2 8 4m0 5c0 2-3.58 4-8 4s-8-2-8-4' // Icon hình Database
     },
     { 
       name: 'Lịch Sử Crawler', 
