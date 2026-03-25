@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Sidebar from '../../../components/Sidebar';
-import { Fingerprint, Globe, Search, Loader2, Play, Copy, Trash2, FileText, ExternalLink, HelpCircle, Zap } from 'lucide-react';
+import { 
+  Fingerprint, Globe, Search, Loader2, Play, 
+  Copy, Trash2, FileText, ExternalLink, HelpCircle, Zap, Save 
+} from 'lucide-react';
+// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API
+import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
 const RegexUserWhiteView: React.FC = () => {
   const [url, setUrl] = useState('');
@@ -9,12 +14,42 @@ const RegexUserWhiteView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
 
-  // Hàm điền mẫu nhanh giúp người dùng hình dung cách dùng
-  const fillSample = () => {
-    setUrl('https://timkiem.vnexpress.net/?q=ai');
-    setRegex('href="(https://vnexpress\\.net/[^"#]+\\.html)".*?title="([^"]+)"');
+  // ✅ 1. STATE CHỨA DANH SÁCH NGUỒN REGEX ĐÃ LƯU
+  const [savedSources, setSavedSources] = useState<any[]>([]);
+
+  // ✅ 2. TẢI CẤU HÌNH KHI MỞ TRANG
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/api/v1/sources/');
+        // Lọc ra các nguồn có phương pháp là REGEX
+        const filtered = res.data.filter((s: any) => s.crawl_method === 'REGEX');
+        setSavedSources(filtered);
+      } catch (error) {
+        console.error("Lỗi tải danh sách nguồn:", error);
+      }
+    };
+    fetchSources();
+  }, []);
+
+  // ✅ 3. HÀM XỬ LÝ KHI CHỌN NGUỒN
+  const handleSelectSource = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    if (!selectedId) {
+      setUrl(''); setRegex('');
+      return;
+    }
+    const source = savedSources.find(s => s._id === selectedId);
+    if (source) {
+      setUrl(source.search_url_template || '');
+      // Nguồn Regex lưu pattern ở thuộc tính regex_pattern
+      setRegex(source.regex_pattern || '');
+    }
   };
 
+  // ==========================================
+  // HÀM CHẠY KIỂM THỬ REGEX
+  // ==========================================
   const handleExecute = async () => {
     if (!url || !regex) {
       alert("Hào ơi, điền đầy đủ URL và biểu thức Regex đã nhé!");
@@ -35,6 +70,27 @@ const RegexUserWhiteView: React.FC = () => {
     } finally { 
       setLoading(false); 
     }
+  };
+
+  // ==========================================
+  // HÀM LƯU CẤU HÌNH REGEX
+  // ==========================================
+  const handleSaveConfig = () => {
+    let baseUrl = "https://unknown.com";
+    try { baseUrl = new URL(url).origin; } catch (e) {}
+
+    saveSourceConfigToServer({
+      base_url: baseUrl,
+      search_url_template: url,
+      crawl_method: "REGEX", // Phân loại chuẩn Regex
+      regex_pattern: regex   // Lưu biểu thức Regex
+    });
+  };
+
+  // Hàm điền mẫu nhanh
+  const fillSample = () => {
+    setUrl('https://timkiem.vnexpress.net/?q=ai');
+    setRegex('href="(https://vnexpress\\.net/[^"#]+\\.html)".*?title="([^"]+)"');
   };
 
   const parseItem = (item: any) => {
@@ -98,6 +154,25 @@ const RegexUserWhiteView: React.FC = () => {
             {/* Cột trái: Form nhập liệu */}
             <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-0">
               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 space-y-8">
+                
+                {/* 📂 TẢI CẤU HÌNH ĐÃ LƯU */}
+                <div className="space-y-1 mb-6 border-b border-indigo-50 pb-6">
+                  <label className="text-[11px] font-black text-indigo-600 uppercase tracking-widest ml-1">
+                    📂 Tải cấu hình Regex đã lưu
+                  </label>
+                  <select 
+                    onChange={handleSelectSource}
+                    className="w-full bg-indigo-50/50 border border-indigo-100 rounded-2xl py-3 px-4 text-sm font-bold text-indigo-700 outline-none focus:bg-indigo-50 focus:border-indigo-300 transition-all cursor-pointer"
+                  >
+                    <option value="">--- Chọn nguồn để tải lại Form ---</option>
+                    {savedSources.map(src => (
+                      <option key={src._id} value={src._id}>
+                        {src.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="space-y-6">
                   {/* Nhập URL */}
                   <div className="group">
@@ -138,13 +213,25 @@ const RegexUserWhiteView: React.FC = () => {
                   </div>
                 </div>
 
-                <button 
-                  onClick={handleExecute} disabled={loading}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-[22px] transition-all flex items-center justify-center gap-3 shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
-                >
-                  {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Play className="w-6 h-6 fill-current" />}
-                  <span className="tracking-widest uppercase text-sm">{loading ? "Đang xử lý..." : "Chạy trích xuất"}</span>
-                </button>
+                {/* HAI NÚT NẰM NGANG */}
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleExecute} disabled={loading}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-indigo-100 disabled:opacity-50 active:scale-95"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                    <span className="tracking-widest uppercase text-[12px]">{loading ? "ĐANG XỬ LÝ..." : "THỰC THI"}</span>
+                  </button>
+
+                  <button 
+                    onClick={handleSaveConfig} disabled={loading}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 disabled:opacity-50 active:scale-95"
+                  >
+                    <Save className="w-5 h-5" />
+                    <span className="tracking-widest uppercase text-[12px]">LƯU CẤU HÌNH</span>
+                  </button>
+                </div>
+
               </div>
 
               {/* Tips Section */}

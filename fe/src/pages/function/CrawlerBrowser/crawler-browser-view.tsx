@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Sidebar from '../../../components/Sidebar';
 import { 
   Layout, Globe, Crosshair, Loader2, Play, 
   Copy, Trash2, FileText, ChevronRight, Search 
 } from 'lucide-react';
-// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API (Đảm bảo bạn đã tạo file này như hướng dẫn trước)
+// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API
 import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
 const BrowserCrawlerView: React.FC = () => {
@@ -15,18 +15,53 @@ const BrowserCrawlerView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
 
+  // ✅ 1. THÊM STATE CHỨA DANH SÁCH NGUỒN ĐÃ LƯU
+  const [savedSources, setSavedSources] = useState<any[]>([]);
+
+  // ✅ 2. TỰ ĐỘNG TẢI DANH SÁCH NGUỒN KHI MỞ TRANG
+  useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/api/v1/sources/');
+        // Lọc ra các nguồn là SELENIUM hoặc HTML
+        const filtered = res.data.filter((s: any) => s.crawl_method === 'SELENIUM' || s.crawl_method === 'HTML');
+        setSavedSources(filtered);
+      } catch (error) {
+        console.error("Lỗi tải danh sách nguồn:", error);
+      }
+    };
+    fetchSources();
+  }, []);
+
+  // ✅ 3. HÀM XỬ LÝ KHI CHỌN NGUỒN TỪ DROPDOWN
+  const handleSelectSource = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = e.target.value;
+    if (!selectedId) {
+      // Bấm "Chọn nguồn..." thì reset form
+      setUrl(''); setPostItemSel(''); setTitleSel('');
+      return;
+    }
+    
+    // Tìm cấu hình tương ứng và đổ ra Form
+    const source = savedSources.find(s => s._id === selectedId);
+    if (source) {
+      setUrl(source.search_url_template || '');
+      setPostItemSel(source.selectors?.post_item || '');
+      setTitleSel(source.selectors?.title_link || '');
+    }
+  };
+
   // ==================================================
-  // 1. HÀM CHẠY KIỂM THỬ BROWSER
+  // HÀM CHẠY KIỂM THỬ BROWSER
   // ==================================================
   const handleExecute = async () => {
     setLoading(true);
     setResults([]);
     try {
       const token = localStorage.getItem('token');
-      // Đổi từ /browser sang /execute-universal cho đúng route BE
       const res = await axios.post('http://localhost:8000/api/v1/crawl-test/browser', {
         url: url,
-        crawl_method: 'BROWSER', // BE của Hào nhận tham số này để switch logic
+        crawl_method: 'BROWSER', 
         post_item_sel: postItemSel,
         title_sel: titleSel,
         keyword: "" 
@@ -34,7 +69,6 @@ const BrowserCrawlerView: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      // Kiểm tra cấu trúc response { status: "success", data: [...] }
       if (res.data && res.data.status === "success") {
         setResults(res.data.data || []); 
       } else {
@@ -49,13 +83,12 @@ const BrowserCrawlerView: React.FC = () => {
   };
 
   // ==================================================
-  // 2. HÀM LƯU CẤU HÌNH (MỚI THÊM)
+  // HÀM LƯU CẤU HÌNH
   // ==================================================
   const handleSaveConfig = () => {
     let baseUrl = "https://unknown.com";
     try { baseUrl = new URL(url).origin; } catch (e) {}
 
-    // Gọi hàm dùng chung để gửi data sang Backend
     saveSourceConfigToServer({
       base_url: baseUrl,
       search_url_template: url,
@@ -68,7 +101,6 @@ const BrowserCrawlerView: React.FC = () => {
   };
 
   const copyToClipboard = () => {
-    // Chỉ copy những mục có dữ liệu thực tế
     const text = results
       .map(item => `${item.title || 'Không có tiêu đề'}: ${item.url}`)
       .join('\n');
@@ -111,6 +143,25 @@ const BrowserCrawlerView: React.FC = () => {
             <div className="lg:col-span-4 space-y-6 sticky top-0">
               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-slate-100 space-y-6">
                 
+                {/* ✅ KHU VỰC CHỌN NGUỒN ĐÃ LƯU (MỚI THÊM) */}
+                <div className="space-y-1 mb-6 border-b border-slate-100 pb-6">
+                  <label className="text-[11px] font-black text-indigo-500 uppercase tracking-widest ml-1">
+                    📂 Tải cấu hình đã lưu
+                  </label>
+                  <select 
+                    onChange={handleSelectSource}
+                    className="w-full bg-indigo-50/50 border border-indigo-100 rounded-2xl py-3 px-4 text-sm font-bold text-indigo-700 outline-none focus:bg-indigo-50 focus:border-indigo-300 transition-all cursor-pointer"
+                  >
+                    <option value="">--- Chọn nguồn để tải lại Form ---</option>
+                    {savedSources.map(src => (
+                      <option key={src._id} value={src._id}>
+                        {src.name} ({src.crawl_method})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {/* ======================================= */}
+
                 <div className="space-y-1">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">URL Mục Tiêu</label>
                   <div className="relative group">
@@ -146,7 +197,7 @@ const BrowserCrawlerView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ✅ HAI NÚT NẰM NGANG Ở ĐÂY */}
+                {/* HAI NÚT NẰM NGANG */}
                 <div className="flex gap-3">
                   <button 
                     onClick={handleExecute} disabled={loading}
@@ -165,12 +216,6 @@ const BrowserCrawlerView: React.FC = () => {
                   </button>
                 </div>
 
-              </div>
-
-              <div className="bg-blue-50/50 border border-blue-100 p-6 rounded-[30px]">
-                 <p className="text-[13px] text-blue-900/60 leading-relaxed font-medium italic">
-                   Mẹo cho Hào: Nếu tiêu đề hiển thị trống, hãy thử đổi selector thành <code className="text-blue-700">.title-news</code> (bỏ thẻ a) để lấy text trực tiếp nhé.
-                 </p>
               </div>
             </div>
 
@@ -203,7 +248,6 @@ const BrowserCrawlerView: React.FC = () => {
                          </div>
                          <div className="flex-1 min-w-0">
                             <h3 className="font-bold text-slate-700 text-[15px] leading-tight group-hover:text-blue-600 transition-colors uppercase tracking-tight truncate">
-                              {/* Xử lý hiển thị thông minh nếu title bị rỗng */}
                               {item.title ? item.title : <span className="text-red-300 italic">Selector chưa lấy được text</span>}
                             </h3>
                             <p className="text-[10px] text-slate-400 truncate mt-1 group-hover:text-blue-400 transition-colors italic">

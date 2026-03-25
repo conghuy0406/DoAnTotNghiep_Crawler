@@ -19,6 +19,8 @@ from typing import Optional, Dict, Any, List
 from fastapi.concurrency import run_in_threadpool
 # ------------------------------------------------
 from bs4 import BeautifulSoup
+from app.celery_worker import run_smart_crawl_task, celery_app
+
 app = FastAPI()
 
 # --- 2. CẤU HÌNH CORS ---
@@ -49,8 +51,6 @@ app.include_router(export.router)
 @app.get("/")
 async def root():
     return {"message": "Backend API is Ready (Fixed Windows 100%)!"}
-
-
 
 
 # --- HÀM BỔ TRỢ: Tự động bóc JSON ---
@@ -86,10 +86,8 @@ def run_api_crawl(data: ApiPayload):
             extracted_data = auto_extract_json(raw_json)[:5]
             
             # KẾ HOẠCH DỰ PHÒNG (FALLBACK):
-            # Nếu bóc tách được bài viết/link -> Trả về dữ liệu đã bóc (Giữ nguyên bài cũ)
             if len(extracted_data) > 0:
                 return {"status": "success", "data": extracted_data}
-            # Nếu không tìm thấy bài viết nào (như API thời tiết) -> Trả về JSON gốc
             else:
                 return {"status": "success", "data": raw_json}
                 
@@ -125,9 +123,6 @@ def run_regex_crawl(data: RegexPayload):
 async def test_crawl_regex(payload: RegexPayload):
     return await run_in_threadpool(run_regex_crawl, payload)
 
-
-import urllib.parse
-from typing import Optional
 
 class BrowserPayload(BaseModel):
     url: str
@@ -430,3 +425,39 @@ def execute_universal_crawl(payload: UniversalCrawlPayload):
 @app.post("/api/v1/crawl-test/execute-universal", tags=["Universal Crawl"])
 async def run_universal_crawl_test(payload: UniversalCrawlPayload):
     return await run_in_threadpool(execute_universal_crawl, payload)
+
+# =====================================================================
+# 7. CHỨC NĂNG CELERY TASK QUEUE (HÀNG ĐỢI BẤT ĐỒNG BỘ)
+# =====================================================================
+from pydantic import BaseModel
+
+class StartTaskPayload(BaseModel):
+    url: str
+
+# API 1: Giao việc (Nhận url từ Body thay vì Query Params để bảo mật hơn)
+@app.post("/api/v1/tasks/start-crawl", tags=["Task Queue"])
+async def start_crawl_task(payload: StartTaskPayload):
+    # Giao việc cho Celery
+    task = run_smart_crawl_task.delay(payload.url)
+    return {"status": "Processing", "task_id": task.id}
+
+# API 2: Hỏi thăm tiến độ
+@app.get("/api/v1/tasks/{task_id}", tags=["Task Queue"])
+async def get_task_status(task_id: str):
+    task_result = celery_app.AsyncResult(task_id)
+    
+    result = {
+        "task_id": task_id,
+        "task_status": task_result.state,
+    }
+
+    if task_result.state == 'PROGRESS':
+        result['progress'] = task_result.info.get('current', 0)
+        result['total'] = task_result.info.get('total', 100)
+        result['message'] = task_result.info.get('status', '')
+    elif task_result.state == 'SUCCESS':
+        result['data'] = task_result.result
+    elif task_result.state == 'FAILURE':
+        result['error'] = str(task_result.info)
+        
+    return result
