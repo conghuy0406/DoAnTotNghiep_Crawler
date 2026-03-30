@@ -41,7 +41,11 @@ const menuItems = [
         { name: 'Crawler HTML', path: '/crawler-html' }, 
         { name: 'Crawler API', path: '/crawler-api' },
         { name: 'Crawler Regex', path: '/crawler-regex' },
-        { name: 'Crawler Browser', path: '/crawler-browser' } 
+        { name: 'Crawler Browser', path: '/crawler-browser' },
+        // --- 3 MỤC MỚI BỔ SUNG TỪ FOLDER ---
+        { name: 'Crawler Content', path: '/crawler-content' },
+        { name: 'Crawler Data', path: '/crawler-data' },
+        { name: 'Test Crawler', path: '/test-crawler' }
       ]
     },
     { 
@@ -49,14 +53,21 @@ const menuItems = [
       path: '/favorites',
       icon: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z' 
     },
-    // ==========================================
-    // THÊM MỚI: QUẢN LÝ NGUỒN CÀO (SOURCE MANAGER)
-    // ==========================================
     { 
       name: 'Quản Lý Nguồn', 
       path: '/sources', 
-      icon: 'M4 7v10c0 2 3.58 4 8 4s8-2 8-4V7M4 7c0 2 3.58 4 8 4s8-2 8-4M4 7c0-2 3.58-4 8-4s8 2 8 4m0 5c0 2-3.58 4-8 4s-8-2-8-4' // Icon hình Database
+      icon: 'M4 7v10c0 2 3.58 4 8 4s8-2 8-4V7M4 7c0 2 3.58 4 8 4s8-2 8-4M4 7c0-2 3.58-4 8-4s8 2 8 4m0 5c0 2-3.58 4-8 4s-8-2-8-4' 
     },
+    { 
+      name: 'Hệ Thống Tự Động', 
+      isDropdown: true, 
+      icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+      subItems: [
+        { name: 'Cấu Hình Lịch', path: '/auto-schedule' }, 
+        { name: 'Lịch Sử Auto', path: '/auto-history' }
+      ]
+    },
+    // --- LỊCH SỬ CRAWLER (Có Phân tích AI) BỊ SÓT ---
     { 
       name: 'Lịch Sử Crawler', 
       path: '/history', 

@@ -15,9 +15,17 @@ import RegexTestView from '../pages/function/CrawlerRegex/crawler-regex-view';
 import BrowserCrawlerView from '../pages/function/CrawlerBrowser/crawler-browser-view'; 
 import FavoritesDetailView from '../pages/function/Favorites/favorites-detail-view';
 import SmartAutoView from '../pages/function/CrawlerAuto/crawler-auto-view';
+import AutoScheduleView from '../pages/function/AutoSchedule/auto-schedule-view';
+import AutoHistoryView from '../pages/function/AutoSchedule/history-view';
 
 // 🌟 THÊM IMPORT CHO TRANG QUẢN LÝ NGUỒN Ở ĐÂY
 import SourceManagerView from '../pages/function/SourceManager/source-manager-view'; 
+
+// ==========================================
+// 🌟 THÊM IMPORT CHO CÁC TRANG CÒN THIẾU 
+// ==========================================
+import CrawlerDataView from '../pages/function/CrawlerData/crawler-data-view';
+import TestCrawlerView from '../pages/function/TestCrawler/test-crawler-view';
 
 const AppRoutes = () => {
   const token = localStorage.getItem('token');
@@ -60,6 +68,18 @@ const AppRoutes = () => {
       <Route 
         path="/crawler-content" 
         element={isAuthenticated ? <CrawlerContentView /> : <Navigate to="/login" replace />} 
+      />
+
+      {/* ========================================== */}
+      {/* 🌟 ROUTES CHO CÁC TRANG CÒN THIẾU */}
+      {/* ========================================== */}
+      <Route 
+        path="/crawler-data" 
+        element={isAuthenticated ? <CrawlerDataView /> : <Navigate to="/login" replace />} 
+      />
+      <Route 
+        path="/test-crawler" 
+        element={isAuthenticated ? <TestCrawlerView /> : <Navigate to="/login" replace />} 
       />
 
       {/* 5. CRAWLER API */}
@@ -120,7 +140,11 @@ const AppRoutes = () => {
         element={isAuthenticated && isAdmin ? <Dashboard /> : <Navigate to="/home" replace />} 
       />
       
-      {/* 11. MẶC ĐỊNH */}
+      {/* 11. HỆ THỐNG TỰ ĐỘNG LÊN LỊCH */}
+      <Route path="/auto-schedule" element={isAuthenticated ? <AutoScheduleView /> : <Navigate to="/login" replace />} />
+      <Route path="/auto-history" element={isAuthenticated ? <AutoHistoryView /> : <Navigate to="/login" replace />} />
+      
+      {/* 12. MẶC ĐỊNH */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -20,7 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 # ------------------------------------------------
 from bs4 import BeautifulSoup
 from app.celery_worker import run_smart_crawl_task, celery_app
-
+from pydantic import BaseModel
 app = FastAPI()
 
 # --- 2. CẤU HÌNH CORS ---
@@ -461,3 +461,80 @@ async def get_task_status(task_id: str):
         result['error'] = str(task_result.info)
         
     return result
+
+
+
+import json
+import os
+
+SCHEDULE_DB = "schedules.json"
+
+class UserSchedule(BaseModel):
+    keyword: str
+    time: str  # Định dạng "HH:MM" (VD: "14:30")
+    is_active: bool = True
+
+@app.post("/api/v1/schedules", tags=["Auto Schedule"])
+async def create_schedule(data: UserSchedule):
+    # 1. Đọc danh sách lịch cũ từ file
+    schedules = []
+    if os.path.exists(SCHEDULE_DB):
+        with open(SCHEDULE_DB, "r", encoding="utf-8") as f:
+            try:
+                schedules = json.load(f)
+            except:
+                pass
+    
+    # 2. Thêm lịch mới vào
+    schedules.append({
+        "keyword": data.keyword, 
+        "time": data.time, 
+        "is_active": data.is_active
+    })
+    
+    # 3. Ghi đè lại vào file
+    with open(SCHEDULE_DB, "w", encoding="utf-8") as f:
+        json.dump(schedules, f, ensure_ascii=False, indent=4)
+        
+    return {"status": "success", "message": f"Đã lên lịch! Sẽ tự động cào '{data.keyword}' lúc {data.time}"}
+@app.get("/api/v1/schedules", tags=["Auto Schedule"])
+async def get_schedules():
+    import json
+    import os
+    SCHEDULE_DB = "schedules.json"
+    if os.path.exists(SCHEDULE_DB):
+        with open(SCHEDULE_DB, "r", encoding="utf-8") as f:
+            try:
+                return json.load(f)
+            except:
+                return []
+    return []
+# =====================================================================
+# 8. API LẤY LỊCH SỬ CÀO TỰ ĐỘNG (DÀNH CHO TRANG LỊCH SỬ AUTO)
+# =====================================================================
+# ĐỔI ĐƯỜNG DẪN Ở ĐÂY ĐỂ KHÔNG ĐỤNG VỚI HISTORY CŨ
+@app.get("/api/v1/schedules/history", tags=["Auto Schedule"])
+async def get_auto_history():
+    import json
+    import os
+    
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    HISTORY_DB = os.path.join(BASE_DIR, "auto", "history.json")
+    
+    # === GẮN CAMERA ĐỂ THEO DÕI ===
+    print(f"👉 [DEBUG API] FastAPI đang mò tìm file tại: {HISTORY_DB}")
+    
+    if os.path.exists(HISTORY_DB):
+        print("👉 [DEBUG API] TÌM THẤY FILE RỒI! Đang moi móc dữ liệu bên trong...")
+        with open(HISTORY_DB, "r", encoding="utf-8") as f:
+            try:
+                histories = json.load(f)
+            
+                return list(reversed(histories)) 
+            except Exception as e:
+                print(f"👉 [DEBUG API] CÓ FILE NHƯNG BỊ LỖI ĐỌC: {e}")
+                return []
+    else:
+        print("👉 [DEBUG API] TÌM KHÔNG THẤY FILE TRÊN Ổ CỨNG! TRẢ VỀ RỖNG []")
+        
+    return []

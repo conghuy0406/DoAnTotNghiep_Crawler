@@ -1,0 +1,32 @@
+[
+    {
+        "keyword": "Tin tức công nghệ mới nhất",
+        "time": "14:15",
+        "is_active": true
+    },
+    {
+        "keyword": "Tin tức công nghệ mới nhất",
+        "time": "14:20",
+        "is_active": true
+    },
+    {
+        "keyword": "ai",
+        "time": "14:40",
+        "is_active": true
+    },
+    {
+        "keyword": "giá xăng",
+        "time": "15:35",
+        "is_active": true
+    },
+    {
+        "keyword": "ai",
+        "time": "15:00",
+        "is_active": true
+    },
+    {
+        "keyword": "ai",
+        "time": "15:52",
+        "is_active": true
+    }
+]
