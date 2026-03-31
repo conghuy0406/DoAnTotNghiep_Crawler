@@ -1,160 +1,154 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/Sidebar';
+import { ExportExcelRequest, ExportUIState } from './types';
 
-const FavoritesListView: React.FC = () => {
-  const [bookmarks, setBookmarks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const navigate = useNavigate();
+const ExportExcelView: React.FC = () => {
+  const [filters, setFilters] = useState<ExportExcelRequest>({
+    keyword: '',
+    only_bookmarked: false
+  });
 
-  const fetchBookmarks = async () => {
+  const [uiState, setUiState] = useState<ExportUIState>({
+    isExporting: false,
+    message: null,
+    status: 'idle'
+  });
+
+  const handleExport = async () => {
+    setUiState({ ...uiState, isExporting: true, status: 'loading', message: 'Đang khởi tạo tệp Excel...' });
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:8000/api/v1/bookmarks/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setBookmarks(res.data.data || []);
-    } catch (err) {
-      console.error("Lỗi lấy danh sách yêu thích:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBookmarks();
-  }, []);
-
-  // Hàm xuất Excel cho các mục đã bookmark
-  const handleExportExcel = async () => {
-    try {
-      setExporting(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:8000/api/v1/export/excel', {
-        params: { only_bookmarked: true }, // Chỉ xuất những bài đã bookmark
+      const response = await axios.get(`http://localhost:8000/api/v1/export/excel`, {
+        params: {
+          keyword: filters.keyword || undefined,
+          only_bookmarked: filters.only_bookmarked
+        },
         headers: { Authorization: `Bearer ${token}` },
-        responseType: 'blob' // Quan trọng để tải file
+        responseType: 'blob',
       });
 
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Favorites_Export_${new Date().getTime()}.xlsx`);
+      const timestamp = new Date().toISOString().slice(0, 10);
+      link.setAttribute('download', `Bao_cao_AI_${timestamp}.xlsx`);
       document.body.appendChild(link);
       link.click();
-      link.remove();
-    } catch (err) {
-      console.error("Lỗi xuất file:", err);
-      alert("Không thể xuất file Excel lúc này.");
-    } finally {
-      setExporting(false);
-    }
-  };
+      
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
 
-  const handleRemoveBookmark = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    try {
-      const token = localStorage.getItem('token');
-      // Gọi DELETE để xóa ghim
-      await axios.delete(`http://localhost:8000/api/v1/bookmarks/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setBookmarks(prev => prev.filter(item => item._id !== id));
-    } catch (err) {
-      console.error("Lỗi khi xóa bookmark:", err);
+      setUiState({ isExporting: false, status: 'success', message: 'Tải tệp thành công!' });
+      setTimeout(() => setUiState((prev: ExportUIState) => ({ ...prev, message: null })), 3000);
+    } catch (error) {
+      setUiState({ isExporting: false, status: 'error', message: 'Lỗi xuất tệp. Kiểm tra Backend!' });
     }
   };
 
   return (
-    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
-      <Sidebar activePage="Favorites" />
+    // Đổi bg sang xám nhạt (Slate-50) và chữ đen (Slate-900)
+    <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-900 font-sans">
+      <Sidebar activePage="Xuất Excel" />
 
-      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden relative">
-        <main className="flex-1 overflow-y-auto p-6 md:p-10 pt-8 custom-scrollbar">
-          <div className="max-w-6xl mx-auto space-y-8 pb-20">
+      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen relative">
+        {/* Hiệu ứng kính (Glassmorphism) sáng hơn */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-cyan-200/30 rounded-full blur-[120px] -mr-80 -mt-80"></div>
+        
+        <main className="flex-1 overflow-y-auto p-6 md:p-12 relative z-10">
+          <div className="max-w-3xl mx-auto space-y-8">
             
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-slate-800">
-                  Saved <span className="text-red-500">Favorites</span>
+            {/* Header sáng với Gradient nhẹ */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-8 bg-cyan-600 rounded-full shadow-[0_0_10px_rgba(8,145,178,0.3)]"></div>
+                <h1 className="text-4xl font-black italic tracking-tighter uppercase leading-none text-slate-800">
+                  Data <span className="text-cyan-600">Exporter</span>
                 </h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                  {bookmarks.length} bản ghi đã được ghim quan trọng
-                </p>
               </div>
+              <p className="text-slate-400 font-bold text-[9px] uppercase tracking-[0.5em] pl-5">
+                Multi-threaded Database to Excel v3.0
+              </p>
+            </div>
 
-              <div className="flex gap-3">
-                {/* Nút Xuất Excel đồng bộ với API */}
+            {/* Panel chính: Trắng tinh khôi, viền mềm, shadow sâu */}
+            <div className="bg-white border border-slate-200 p-10 rounded-[40px] shadow-[0_20px_50px_rgba(0,0,0,0.05)] relative overflow-hidden group">
+              <div className="space-y-8">
+                
+                {/* Input Section */}
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-black uppercase tracking-widest text-slate-500 flex items-center gap-2 ml-1">
+                      Lọc theo từ khóa
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="Nhập từ khóa..."
+                      value={filters.keyword}
+                      onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
+                      // Input sáng, viền xanh nhẹ khi focus
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:outline-none focus:border-cyan-500 focus:bg-white transition-all shadow-sm placeholder:text-slate-300"
+                    />
+                  </div>
+
+                  {/* Checkbox Styled */}
+                  <label className="flex items-center gap-4 cursor-pointer p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-cyan-200 hover:bg-white transition-all shadow-sm group/item">
+                    <div className="relative flex items-center justify-center">
+                      <input 
+                        type="checkbox" 
+                        checked={filters.only_bookmarked}
+                        onChange={(e) => setFilters({ ...filters, only_bookmarked: e.target.checked })}
+                        className="peer appearance-none w-6 h-6 rounded-lg border-2 border-slate-200 bg-white checked:bg-cyan-600 checked:border-cyan-600 transition-all cursor-pointer"
+                      />
+                      <svg className="absolute w-4 h-4 text-white opacity-0 peer-checked:opacity-100 pointer-events-none transition-opacity" fill="none" stroke="currentColor" strokeWidth="4" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover/item:text-cyan-700 transition-colors">
+                      Chỉ xuất các bản ghi đã lưu (Bookmark)
+                    </span>
+                  </label>
+                </div>
+
+                {/* Nút bấm Export: Xanh đậm sắc nét */}
                 <button 
-                  onClick={handleExportExcel}
-                  disabled={exporting || bookmarks.length === 0}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                  onClick={handleExport}
+                  disabled={uiState.isExporting}
+                  className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-xs transition-all flex items-center justify-center gap-3
+                    ${uiState.isExporting 
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+                      : 'bg-slate-900 hover:bg-cyan-700 text-white shadow-xl hover:shadow-cyan-200 active:scale-[0.98]'
+                    }`}
                 >
-                  {exporting ? "Đang xuất..." : "Xuất Excel"}
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  {uiState.isExporting ? (
+                    <div className="w-5 h-5 border-2 border-slate-400 border-t-slate-600 rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                      </svg>
+                      Xác nhận xuất Excel
+                    </>
+                  )}
                 </button>
+
+                {uiState.message && (
+                  <p className={`text-center text-[10px] font-black uppercase tracking-widest animate-pulse ${uiState.status === 'error' ? 'text-red-500' : 'text-cyan-600'}`}>
+                    {uiState.message}
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Table Section */}
-            <div className="bg-white rounded-[40px] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.03)] overflow-hidden">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Nội dung</th>
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Phân loại</th>
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Hành động</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {loading ? (
-                    <tr><td colSpan={3} className="px-8 py-24 text-center"><div className="inline-block w-8 h-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div></td></tr>
-                  ) : bookmarks.map((item) => (
-                    <tr 
-                      key={item._id} 
-                      className="hover:bg-red-50/20 transition-all group"
-                    >
-                      <td className="px-8 py-6">
-                        <div className="flex flex-col">
-                          <span className="font-black text-slate-800 uppercase tracking-tight text-sm italic line-clamp-1 group-hover:text-red-500 transition-colors">
-                            {item.title || item.keyword}
-                          </span>
-                          <span className="text-[9px] font-bold text-slate-300 mt-1 truncate max-w-xs uppercase">
-                            {item.url || "Dữ liệu cục bộ"}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-8 py-6 text-[10px] font-black">
-                        <span className="text-indigo-500 italic">#{item.source_name || "Nguồn"}</span>
-                        <div className="text-slate-400 text-[9px] uppercase mt-0.5">Lưu: {new Date(item.bookmarked_at).toLocaleDateString('vi-VN')}</div>
-                      </td>
-                      
-                      <td className="px-8 py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          <button 
-                            onClick={(e) => handleRemoveBookmark(e, item._id)}
-                            className="p-2.5 bg-red-50 text-red-500 rounded-xl border border-red-100 hover:bg-red-500 hover:text-white transition-all shadow-sm"
-                          >
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001z" /></svg>
-                          </button>
-                          <button 
-                            onClick={() => navigate(`/history/${item._id}`)}
-                            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600 transition-all shadow-md"
-                          >
-                            Xem
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Footer Status */}
+            <div className="flex items-center justify-between px-6 py-4 bg-white/50 rounded-3xl border border-white">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">System Online</span>
+              </div>
+              <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest italic font-serif">Hào Nguyễn - Graduation Project</span>
             </div>
+
           </div>
         </main>
       </div>
@@ -162,4 +156,4 @@ const FavoritesListView: React.FC = () => {
   );
 };
 
-export default FavoritesListView;
+export default ExportExcelView;

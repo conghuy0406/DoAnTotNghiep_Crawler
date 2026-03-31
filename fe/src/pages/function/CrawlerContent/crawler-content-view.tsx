@@ -1,110 +1,114 @@
 import React, { useState } from 'react';
-import Sidebar from '../../../components/Sidebar';
-import CrawlerResultTable from './crawler-result-table';
+import axios from 'axios';
 import { ExtractResponse } from './types';
 
-const CrawlerContentView: React.FC = () => {
-  const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<ExtractResponse | null>(null);
+interface Props {
+  data: ExtractResponse | null;
+  loading: boolean;
+}
 
-  const handleExtract = async () => {
-    if (!url.trim()) return;
-    setLoading(true);
-    setData(null); 
+const CrawlerResultTable: React.FC<Props> = ({ data, loading }) => {
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+
+  const handleToggleBookmark = async () => {
+    if (!data?._id || bookmarkLoading) return;
+    
+    setBookmarkLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url })
-      });
-      const result = await response.json();
-      if (result.message === "Đọc bài viết thành công!" && result.data) {
-        setData(result.data); 
+      const token = localStorage.getItem('token');
+      // Nếu đã bookmark thì xóa (DELETE), chưa thì thêm (POST)
+      if (isBookmarked) {
+        await axios.delete(`http://localhost:8000/api/v1/bookmarks/${data._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setIsBookmarked(false);
+      } else {
+        await axios.post(`http://localhost:8000/api/v1/bookmarks/${data._id}`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setIsBookmarked(true);
       }
     } catch (error) {
-      console.error("Lỗi kết nối:", error);
+      console.error("Lỗi thao tác Bookmark:", error);
     } finally {
-      setLoading(false);
+      setBookmarkLoading(false);
     }
   };
 
+  if (loading) return (
+    <div className="w-full py-20 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-100 shadow-sm">
+      <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+      <p className="mt-4 text-[11px] font-black uppercase tracking-widest text-indigo-500">Đang phân tích bài viết...</p>
+    </div>
+  );
+
+  if (!data) return (
+    <div className="py-24 text-center flex flex-col items-center animate-in fade-in duration-500">
+       <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 border border-slate-100">
+          <svg className="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l4 4v10a2 2 0 01-2 2z"></path>
+          </svg>
+       </div>
+       <h3 className="text-xs font-black uppercase tracking-[0.4em] text-slate-500 mb-2">Đang chờ link bài viết</h3>
+       <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Vui lòng nhập URL hợp lệ</p>
+    </div>
+  );
+
   return (
-    /* SỬA: Cấu trúc flex h-screen và overflow-hidden để cố định khung hình */
-    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
-      
-      {/* 1. SIDEBAR CỐ ĐỊNH (FIXED) */}
-      <Sidebar activePage="Crawler Nội Dung" />
-
-      {/* 2. MAIN AREA: Đẩy lề ml-20 (mobile) và md:ml-64 (desktop) */}
-      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden relative">
-        
-        {/* Decor background bóng mờ (Optional) */}
-        <div className="absolute top-[-10%] left-[-5%] w-96 h-96 bg-indigo-50/50 rounded-full blur-3xl -z-10"></div>
-        
-        {/* NỘI DUNG CÓ THỂ CUỘN */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-10 custom-scrollbar">
-          <div className="max-w-5xl mx-auto space-y-8 pb-20">
-            
-            {/* Title Header */}
-            <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-500">
-              <div className="w-12 h-12 bg-white border border-indigo-100 rounded-2xl flex items-center justify-center shadow-sm shadow-indigo-100/50">
-                 <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-                 </svg>
-              </div>
-              <div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-slate-800 leading-none">
-                  Reader <span className="text-indigo-600">Extract</span>
-                </h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1 ml-1">
-                  AI-Powered Content Analysis
-                </p>
-              </div>
-            </div>
-
-            {/* Search Bar Container */}
-            <div className="bg-white border border-slate-100 rounded-[24px] p-3 shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col md:flex-row gap-3 items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-              <div className="flex-1 w-full flex items-center px-5 bg-slate-50/50 rounded-2xl border border-transparent focus-within:border-indigo-100 focus-within:bg-white focus-within:shadow-inner transition-all duration-300">
-                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path>
-                </svg>
-                <input 
-                  type="text"
-                  placeholder="Dán link bài báo vào đây để AI đọc giúp bạn..."
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  className="w-full bg-transparent border-none px-4 py-5 text-sm focus:ring-0 text-slate-700 font-bold placeholder:text-slate-300 placeholder:font-medium"
-                />
-              </div>
-              <button 
-                onClick={handleExtract}
-                disabled={loading || !url}
-                className="w-full md:w-auto px-10 py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-lg shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 disabled:shadow-none"
+    <div className="w-full bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm animate-in fade-in slide-in-from-bottom-4">
+      <article className="p-8 md:p-12 max-w-4xl mx-auto">
+        <header className="mb-10 relative">
+          {/* NÚT YÊU THÍCH (BOOKMARK) */}
+          <div className="absolute top-0 right-0">
+            <button 
+              onClick={handleToggleBookmark}
+              disabled={bookmarkLoading}
+              className={`p-4 rounded-2xl transition-all duration-300 group ${
+                isBookmarked 
+                  ? 'bg-red-50 text-red-500 shadow-inner' 
+                  : 'bg-slate-50 text-slate-300 hover:text-red-400 hover:bg-red-50'
+              }`}
+            >
+              <svg 
+                className={`w-6 h-6 transition-transform duration-300 ${isBookmarked ? 'scale-110 fill-current' : 'scale-100 group-hover:scale-125'}`} 
+                fill={isBookmarked ? "currentColor" : "none"} 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
               >
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <>
-                    <span>Đọc bài viết</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
-                    </svg>
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Bảng kết quả/Nội dung chi tiết */}
-            <div className="animate-in fade-in slide-in-from-bottom-6 duration-1000">
-              <CrawlerResultTable data={data} loading={loading} />
-            </div>
-
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+              </svg>
+            </button>
           </div>
-        </main>
-      </div>
+
+          <div className="flex items-center gap-3 mb-4">
+              <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-wider">
+                {data.extraction_method || 'AI NEURAL'}
+              </span>
+              <span className="text-[11px] text-slate-400 font-bold truncate max-w-[200px] md:max-w-xs">{data.url}</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-800 leading-tight tracking-tight pr-16">
+            {data.title}
+          </h1>
+          <div className="h-1.5 w-20 bg-indigo-500 rounded-full mt-4"></div>
+        </header>
+
+        <section className="text-slate-700 leading-[1.8] text-lg space-y-7 font-medium border-t border-slate-50 pt-8">
+          {data.content ? (
+            data.content.split('\n').map((paragraph, index) => (
+              paragraph.trim() && (
+                <p key={index} className="hover:text-slate-900 transition-colors">
+                  {paragraph}
+                </p>
+              )
+            ))
+          ) : (
+            <p className="text-slate-400 italic font-bold">Nội dung không khả dụng.</p>
+          )}
+        </section>
+      </article>
     </div>
   );
 };
 
-export default CrawlerContentView;
+export default CrawlerResultTable;

@@ -2,6 +2,7 @@
 venv/
 .venv/
 env/
+fe/node_modules/
 
 # Bỏ qua file cache của Python
 __pycache__/
