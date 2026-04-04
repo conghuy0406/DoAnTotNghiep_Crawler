@@ -3,9 +3,9 @@ import axios from 'axios';
 import Sidebar from '../../../components/Sidebar';
 import { 
   Zap, Globe, Loader2, Trash2, 
-  Sparkles, ShieldCheck, ChevronRight, Wand2, Save 
+  Sparkles, ShieldCheck, Wand2, Save,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
-// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API
 import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
 const SmartAutoView: React.FC = () => {
@@ -13,15 +13,13 @@ const SmartAutoView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
 
-  // ✅ 1. THÊM STATE CHỨA DANH SÁCH NGUỒN ĐÃ LƯU
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [savedSources, setSavedSources] = useState<any[]>([]);
 
-  // ✅ 2. TỰ ĐỘNG TẢI DANH SÁCH NGUỒN KHI MỞ TRANG
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/sources/');
-        // Lọc ra CÁC NGUỒN SMART_AUTO
+        const res = await axios.get('/api/v1/sources/');
         const filtered = res.data.filter((s: any) => s.crawl_method === 'SMART_AUTO');
         setSavedSources(filtered);
       } catch (error) {
@@ -31,7 +29,6 @@ const SmartAutoView: React.FC = () => {
     fetchSources();
   }, []);
 
-  // ✅ 3. HÀM XỬ LÝ KHI CHỌN NGUỒN TỪ DROPDOWN
   const handleSelectSource = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     if (!selectedId) {
@@ -44,37 +41,31 @@ const SmartAutoView: React.FC = () => {
     }
   };
 
-  // ==========================================
-  // HÀM CHẠY KIỂM THỬ SMART AUTO
-  // ==========================================
   const handleSmartExecute = async () => {
     if (!url) return alert("Vui lòng nhập URL!");
     setLoading(true);
     setResults([]);
+    setExpandedIndex(null); 
+    
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.post('http://localhost:8000/api/v1/crawl-test/smart-auto', {
-        url: url
-      }, {
+      const res = await axios.post('/api/v1/crawl-test/smart-auto', { url: url }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       if (res.data && res.data.status === "success") {
         setResults(res.data.data);
       } else {
-        alert("Backend trả về lỗi: " + (res.data.message || "Không xác định"));
+        alert("Backend trả về lỗi: " + (res.data.error || "Không xác định"));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Lỗi Smart Auto:", err);
-      alert("Hệ thống AI không thể phân tích tự động trang này!");
+      alert("Hệ thống AI không thể phân tích tự động trang này! " + (err.response?.data?.detail || ""));
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // HÀM LƯU CẤU HÌNH SMART AUTO
-  // ==========================================
   const handleSaveConfig = () => {
     let baseUrl = "https://unknown.com";
     try { baseUrl = new URL(url).origin; } catch (e) {}
@@ -82,9 +73,21 @@ const SmartAutoView: React.FC = () => {
     saveSourceConfigToServer({
       base_url: baseUrl,
       search_url_template: url,
-      crawl_method: "SMART_AUTO", // BE lưu đúng loại này
-      selectors: {} // Smart Auto thì không cần selector
+      crawl_method: "SMART_AUTO", 
+      selectors: {} 
     });
+  };
+
+  const getSentimentColor = (sentiment: string) => {
+    if (!sentiment) return "bg-slate-100 text-slate-500 border-slate-200";
+    const lower = sentiment.toLowerCase();
+    if (lower.includes('tích cực')) return "bg-emerald-50 text-emerald-600 border-emerald-200";
+    if (lower.includes('tiêu cực')) return "bg-rose-50 text-rose-600 border-rose-200";
+    return "bg-amber-50 text-amber-600 border-amber-200"; 
+  };
+
+  const toggleExpand = (index: number) => {
+    setExpandedIndex(prevIndex => (prevIndex === index ? null : index));
   };
 
   return (
@@ -94,7 +97,6 @@ const SmartAutoView: React.FC = () => {
       <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen">
         <main className="flex-1 overflow-y-auto p-6 lg:p-10 custom-scrollbar">
           
-          {/* HEADER STYLE AI */}
           <div className="max-w-7xl mx-auto mb-10 flex items-end justify-between border-b border-rose-100 pb-6">
             <div className="flex items-center gap-5">
               <div className="w-16 h-16 bg-white shadow-sm border border-rose-50 rounded-2xl flex items-center justify-center text-rose-500">
@@ -103,12 +105,12 @@ const SmartAutoView: React.FC = () => {
               <div>
                 <h1 className="text-3xl font-black text-slate-800 tracking-tight uppercase leading-none mb-2">Smart Auto Crawler</h1>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span> AI-Powered Detection (No Selector Needed)
+                  <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span> LLM Data Parsing & Sentiment Analysis
                 </p>
               </div>
             </div>
             <button 
-              onClick={() => setResults([])} 
+              onClick={() => { setResults([]); setExpandedIndex(null); }} 
               className="p-3 bg-white border border-slate-200 rounded-xl text-slate-300 hover:text-rose-500 transition-all shadow-sm"
             >
               <Trash2 size={20} />
@@ -117,14 +119,12 @@ const SmartAutoView: React.FC = () => {
 
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* CỘT TRÁI: CẤU HÌNH */}
             <div className="lg:col-span-4 space-y-6">
               <div className="bg-white p-8 rounded-[40px] shadow-sm border border-rose-50 space-y-8 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-5">
                    <Zap size={100} className="text-rose-500" />
                 </div>
 
-                {/* ✅ KHU VỰC CHỌN NGUỒN ĐÃ LƯU */}
                 <div className="space-y-1 mb-6 border-b border-rose-50 pb-6 relative z-10">
                   <label className="text-[11px] font-black text-rose-500 uppercase tracking-widest ml-1">
                     📂 Tải cấu hình đã lưu
@@ -135,14 +135,11 @@ const SmartAutoView: React.FC = () => {
                   >
                     <option value="">--- Chọn nguồn AI để tải lại ---</option>
                     {savedSources.map(src => (
-                      <option key={src._id} value={src._id}>
-                        {src.name} 
-                      </option>
+                      <option key={src._id} value={src._id}>{src.name}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* NHẬP URL */}
                 <div className="space-y-1 relative z-10">
                   <label className="text-[11px] font-black text-rose-400 uppercase tracking-widest ml-1">Địa chỉ trang web</label>
                   <div className="relative group">
@@ -155,7 +152,6 @@ const SmartAutoView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ✅ HAI NÚT NẰM NGANG */}
                 <div className="flex gap-3 relative z-10">
                   <button 
                     onClick={handleSmartExecute} disabled={loading}
@@ -173,20 +169,12 @@ const SmartAutoView: React.FC = () => {
                     <span className="tracking-widest uppercase text-[12px]">LƯU CẤU HÌNH</span>
                   </button>
                 </div>
-
-                <div className="pt-4 border-t border-slate-50 relative z-10">
-                   <div className="flex items-center gap-3 text-emerald-500 bg-emerald-50 p-4 rounded-2xl">
-                      <ShieldCheck size={20} />
-                      <span className="text-[10px] font-bold uppercase tracking-tight">AI đã sẵn sàng nhận diện cấu trúc</span>
-                   </div>
-                </div>
               </div>
             </div>
 
-            {/* CỘT PHẢI: KẾT QUẢ TỰ ĐỘNG NHẬN DIỆN */}
             <div className="lg:col-span-8">
               <div className="flex justify-between items-center mb-5 px-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Kết quả nhận diện ({results.length})</h2>
+                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Kết quả phân tích LLM ({results.length})</h2>
               </div>
 
               <div className="bg-white border border-rose-50 rounded-[40px] shadow-sm min-h-[500px] overflow-hidden">
@@ -197,24 +185,131 @@ const SmartAutoView: React.FC = () => {
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-50 max-h-[650px] overflow-y-auto custom-scrollbar">
-                    {results.map((item, i) => (
-                      <div key={i} className="p-6 hover:bg-rose-50/30 transition-all group flex gap-6 items-center">
-                         <div className="flex-none w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-[10px] font-black text-slate-300 group-hover:bg-rose-500 group-hover:text-white transition-all">
-                           {(i+1).toString().padStart(2, '0')}
-                         </div>
-                         <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-slate-700 text-[15px] group-hover:text-rose-600 transition-colors truncate">
-                              {item.title || item.name || "DỮ LIỆU TỰ ĐỘNG"}
-                            </h3>
-                            <p className="text-[10px] text-slate-400 truncate mt-1 italic">
-                              {item.url || item.link}
-                            </p>
-                         </div>
-                         <a href={item.url || item.link} target="_blank" rel="noopener noreferrer">
-                           <ChevronRight size={18} className="text-slate-200 group-hover:text-rose-400 group-hover:translate-x-1 transition-all" />
-                         </a>
-                      </div>
-                    ))}
+                    {results.map((item, i) => {
+                      const isExpanded = expandedIndex === i;
+
+                      return (
+                        <div key={i} className="hover:bg-rose-50/30 transition-all border-b border-slate-50 relative">
+                           
+                           <div 
+                             className="p-7 flex gap-6 items-start cursor-pointer group"
+                             onClick={() => toggleExpand(i)}
+                           >
+                               <div className="flex-none w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-[12px] font-black text-slate-300 group-hover:bg-rose-500 group-hover:text-white transition-all shadow-sm">
+                                 {(i+1).toString().padStart(2, '0')}
+                               </div>
+                               
+                               <div className="flex-1 min-w-0 pt-1">
+                                  <div className="flex justify-between items-start gap-4 mb-1">
+                                     <div>
+                                       {item.topic && (
+                                          <span className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1.5 block">
+                                            ◆ {item.topic}
+                                          </span>
+                                       )}
+                                       <h3 className="font-bold text-slate-800 text-lg group-hover:text-rose-600 transition-colors line-clamp-2 leading-snug">
+                                         {item.title || "DỮ LIỆU TỰ ĐỘNG BỞI AI"}
+                                       </h3>
+                                     </div>
+                                     
+                                     <div className="flex items-center gap-3 shrink-0 mt-1">
+                                       {item.sentiment && (
+                                         <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${getSentimentColor(item.sentiment)}`}>
+                                           {item.sentiment}
+                                         </span>
+                                       )}
+                                       <div className="text-slate-300 group-hover:text-rose-400 transition-colors">
+                                          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                       </div>
+                                     </div>
+                                  </div>
+                                  
+                                  {!isExpanded && item.description && (
+                                    <p className="text-sm text-slate-500 line-clamp-1 italic mt-2">
+                                      {item.description}
+                                    </p>
+                                  )}
+                               </div>
+                           </div>
+
+                           {/* PHẦN CHI TIẾT */}
+                           {isExpanded && (
+                             <div className="px-7 pb-7 ml-[72px] animate-in fade-in slide-in-from-top-2 duration-300 cursor-default">
+                                
+                                <div className="mb-5 border-t border-slate-100 pt-5">
+                                  <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Phân tích AI chuyên sâu</h4>
+                                  <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl">
+                                    {item.detailed_analysis || item.description || "Đang cập nhật phân tích..."}
+                                  </p>
+                                </div>
+
+                                {item.sentiment_reason && (
+                                  <div className="mb-5 flex items-start gap-3">
+                                    <div className={`p-2 rounded-lg mt-1 ${getSentimentColor(item.sentiment).replace('text-', 'bg-').replace('50', '100')}`}>
+                                      <Zap size={14} className="opacity-70" />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-1">Cơ sở đánh giá ({item.sentiment})</h4>
+                                      <p className="text-[13px] text-slate-600 italic">
+                                        {item.sentiment_reason}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between flex-wrap gap-3 mt-6">
+                                   {item.tags && Array.isArray(item.tags) && (
+                                     <div className="flex flex-wrap gap-2">
+                                       {item.tags.map((tag: string, idx: number) => (
+                                         <span key={idx} className="bg-slate-100 text-slate-500 text-[10px] font-bold px-3 py-1.5 rounded-md">
+                                           #{tag}
+                                         </span>
+                                       ))}
+                                     </div>
+                                   )}
+
+                                   {/* ✅ XỬ LÝ LINK THÔNG MINH: Lọc bỏ # và nối domain nếu link bị thiếu */}
+                                   {(() => {
+                                      let finalUrl = item.link || item.url || "";
+                                      
+                                      // 1. Nếu không có link hoặc là '#' thì không hiện nút bấm luôn
+                                      if (!finalUrl || finalUrl === "#" || finalUrl === "null") return null;
+
+                                      // 2. Nếu link bị cụt đầu (thiếu http), nối thêm tên miền gốc vào
+                                      if (!finalUrl.startsWith("http")) {
+                                        try {
+                                           const base = new URL(url).origin;
+                                           finalUrl = finalUrl.startsWith("/") ? `${base}${finalUrl}` : `${base}/${finalUrl}`;
+                                        } catch(e) {
+                                           finalUrl = `https://${finalUrl}`;
+                                        }
+                                      }
+
+                                      return (
+                                        <div className="ml-auto">
+                                          <a 
+                                            href={finalUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()} 
+                                            className="flex items-center gap-2 bg-rose-500 px-4 py-2 rounded-xl hover:bg-rose-600 transition-all shadow-md shadow-rose-200"
+                                          >
+                                            <Globe className="w-4 h-4 text-white" />
+                                            <span className="text-[11px] font-black text-white uppercase tracking-wider">
+                                              Đến trang gốc
+                                            </span>
+                                          </a>
+                                        </div>
+                                      );
+                                   })()}
+
+                                </div>
+                             </div>
+                           )}
+
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

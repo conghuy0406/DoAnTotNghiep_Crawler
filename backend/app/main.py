@@ -1,26 +1,30 @@
 # --- 1. FIX LỖI WINDOWS PLAYWRIGHT (BẮT BUỘC Ở DÒNG ĐẦU) ---
 import sys
 import asyncio
-
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
+# --- THƯ VIỆN HỆ THỐNG ---
+import os
+import re
+import json
+import urllib.parse
+import requests
+from bs4 import BeautifulSoup
+
+# --- THƯ VIỆN BÊN THỨ 3 ---
+import google.generativeai as genai
+from pydantic import BaseModel, field_validator
+from typing import Optional, Dict, Any, List
+from playwright.sync_api import sync_playwright
+
+# --- FASTAPI & LOCAL MODULES ---
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import crawl, auth, source, history, bookmarks, export 
-
-# --- THƯ VIỆN BỔ SUNG CHO CHỨC NĂNG TEST CRAWL ---
-import requests
-import urllib.parse
-import re
-from playwright.sync_api import sync_playwright
-from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
 from fastapi.concurrency import run_in_threadpool
-# ------------------------------------------------
-from bs4 import BeautifulSoup
+from app.api import crawl, auth, source, history, bookmarks, export 
 from app.celery_worker import run_smart_crawl_task, celery_app
-from pydantic import BaseModel
+
 app = FastAPI()
 
 # --- 2. CẤU HÌNH CORS ---
@@ -28,6 +32,7 @@ origins = [
     "http://localhost",
     "http://localhost:3000", 
     "http://localhost:5173", 
+    "https://80c9-123-21-33-197.ngrok-free.app", # Cập nhật link Ngrok mới nhất nếu có đổi
     "*"                      
 ]
 
@@ -53,7 +58,9 @@ async def root():
     return {"message": "Backend API is Ready (Fixed Windows 100%)!"}
 
 
-# --- HÀM BỔ TRỢ: Tự động bóc JSON ---
+# =====================================================================
+# CHỨC NĂNG CRAWL TỪ API JSON
+# =====================================================================
 def auto_extract_json(data):
     found = []
     def search_d(d):
@@ -100,9 +107,9 @@ async def test_crawl_api(payload: ApiPayload):
     return await run_in_threadpool(run_api_crawl, payload)
 
 
-# ---------------------------------------------------------
-# 2. CHỨC NĂNG CRAWL BẰNG BIỂU THỨC CHÍNH QUY (REGEX)
-# ---------------------------------------------------------
+# =====================================================================
+# CHỨC NĂNG CRAWL BẰNG BIỂU THỨC CHÍNH QUY (REGEX)
+# =====================================================================
 class RegexPayload(BaseModel):
     url: str
     regex_pattern: str
@@ -112,9 +119,7 @@ def run_regex_crawl(data: RegexPayload):
         html_text = requests.get(data.url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10).text
         matches = re.findall(data.regex_pattern, html_text)
         
-        results = []
-        for match in matches[:5]:
-            results.append({"match_data": match})
+        results = [{"match_data": match} for match in matches[:5]]
         return {"status": "success", "data": results}
     except Exception as e:
         return {"error": str(e)}
@@ -124,12 +129,14 @@ async def test_crawl_regex(payload: RegexPayload):
     return await run_in_threadpool(run_regex_crawl, payload)
 
 
+# =====================================================================
+# CHỨC NĂNG BROWSER CRAWL (MANUAL CSS SELECTORS)
+# =====================================================================
 class BrowserPayload(BaseModel):
     url: str
     post_item_sel: Optional[str] = None
     title_sel: Optional[str] = None
 
-# TỪ ĐIỂN CÁC TRANG WEB KHÓ (Bot sẽ tự nhớ Selector mà không cần người dùng nhập)
 KNOWN_SITES = {
     "shopee.vn": {
         "post_item_sel": "li.col-xs-2-4, .shopee-search-item-result__item",
@@ -144,26 +151,21 @@ KNOWN_SITES = {
 def run_browser_crawl(data: BrowserPayload):
     results = []
     try:
-        # 1. Tự động nhận diện tên miền trang web
         domain = urllib.parse.urlparse(data.url).netloc.replace("www.", "")
         
-        # 2. Xử lý logic Lai (Hybrid Logic)
         actual_post_sel = data.post_item_sel
         actual_title_sel = data.title_sel
-        mode_used = "MANUAL_OVERRIDE" # Mặc định là người dùng tự nhập
+        mode_used = "MANUAL_OVERRIDE"
         
-        # Nếu người dùng ĐỂ TRỐNG 2 ô Selector
         if not actual_post_sel or not actual_title_sel:
-            # Kiểm tra xem web này có nằm trong Từ điển không
             if domain in KNOWN_SITES:
                 actual_post_sel = KNOWN_SITES[domain]["post_item_sel"]
                 actual_title_sel = KNOWN_SITES[domain]["title_sel"]
                 mode_used = f"AUTO_SMART_DICT ({domain})"
             else:
-                mode_used = "AUTO_HEURISTIC_NEWS" # Nếu là web lạ/báo chí, dùng AI tự đoán
+                mode_used = "AUTO_HEURISTIC_NEWS"
 
         with sync_playwright() as p:
-            # Vượt rào cơ bản
             browser = p.chromium.launch(headless=False, args=['--disable-blink-features=AutomationControlled'])
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -174,14 +176,10 @@ def run_browser_crawl(data: BrowserPayload):
             page.goto(data.url, wait_until="domcontentloaded", timeout=25000)
             page.wait_for_timeout(3000)
             
-            # Cuộn trang để tải ảnh/JS
             for _ in range(3):
                 page.evaluate("window.scrollBy(0, 1000)")
                 page.wait_for_timeout(1500)
             
-            # --- PHÂN NHÁNH XỬ LÝ ---
-            
-            # NHÁNH A: DÙNG SELECTOR (Cho Shopee, Tiki hoặc người dùng tự nhập)
             if actual_post_sel and actual_title_sel:
                 items = page.locator(actual_post_sel).all()
                 for item in items[:10]:
@@ -190,14 +188,11 @@ def run_browser_crawl(data: BrowserPayload):
                         title_text = t_el.inner_text().strip()
                         url_link = t_el.get_attribute("href")
                         
-                        # Xử lý link bị thiếu https://
                         if url_link and not url_link.startswith("http"):
                              url_link = f"https://{domain}{url_link}"
                              
                         if title_text:
                             results.append({"title": title_text, "url": url_link or data.url})
-                        
-            # NHÁNH B: CÀO MÙ CHO BÁO CHÍ (AUTO HEURISTIC)
             else:
                 links = page.locator("a").all()
                 seen_urls = set()
@@ -208,7 +203,6 @@ def run_browser_crawl(data: BrowserPayload):
                         url = link.get_attribute("href")
                         if not url or not raw_text: continue
                             
-                        # Cắt dòng và tìm dòng dài nhất làm Tiêu đề
                         lines = [line.strip() for line in raw_text.split('\n') if len(line.strip()) > 10]
                         if not lines: continue
                         best_title = max(lines, key=len)
@@ -222,7 +216,6 @@ def run_browser_crawl(data: BrowserPayload):
                         if len(results) >= 10: break
                     except Exception:
                         continue
-
             browser.close()
             
         return {
@@ -239,9 +232,9 @@ async def test_crawl_browser(payload: BrowserPayload):
     return await run_in_threadpool(run_browser_crawl, payload)
 
 
-# ---------------------------------------------------------
-# 4. CHỨC NĂNG CRAWL HTML TĨNH (NHANH - BỎ QUA JS)
-# ---------------------------------------------------------
+# =====================================================================
+# CHỨC NĂNG CRAWL HTML TĨNH (NHANH - BỎ QUA JS)
+# =====================================================================
 class HtmlPayload(BaseModel):
     url: str
     post_item_sel: str
@@ -253,7 +246,6 @@ def run_html_crawl(data: HtmlPayload):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            # Chặn tải JS/Hình ảnh để chạy siêu tốc
             page.route("**/*", lambda route: route.continue_() if route.request.resource_type == "document" else route.abort())
             page.goto(data.url, wait_until="domcontentloaded", timeout=15000)
             
@@ -274,97 +266,128 @@ def run_html_crawl(data: HtmlPayload):
 async def test_crawl_html(payload: HtmlPayload):
     return await run_in_threadpool(run_html_crawl, payload)
 
+
 # =====================================================================
-# 5. CHỨC NĂNG CRAWL THÔNG MINH (CÂN MỌI THỂ LOẠI LINK)
+# ĐỈNH CAO: SMART CRAWL BẰNG GEMINI AI (100% TRÍ TUỆ NHÂN TẠO)
 # =====================================================================
+GEMINI_API_KEY = "AIzaSyBXqqhCghyazUxaC9E9lbb7zo_Hud0QuTg".strip() 
+genai.configure(api_key=GEMINI_API_KEY)
+
 class SmartPayload(BaseModel):
     url: str
 
-SMART_KNOWLEDGE_BASE = {
-    "shopee.vn": {
-        "post_item_sel": "li.col-xs-2-4, .shopee-search-item-result__item",
-        "title_sel": "div[data-sqe='name'], div.ie3A-n"
-    },
-    "tiki.vn": {
-        "post_item_sel": "a.product-item",
-        "title_sel": "div.name h3, div.name"
-    },
-    "vnexpress.net": {
-        "post_item_sel": "article.item-news",
-        "title_sel": "h3.title-news a"
-    }
-}
+    @classmethod
+    @field_validator('url')
+    def clean_url(cls, v):
+        return v.strip().replace("\n", "").replace("\r", "")
+
+def clean_json_string(raw_response: str) -> str:
+    cleaned = raw_response.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    return cleaned.strip()
 
 def run_smart_auto_crawl(data: SmartPayload):
     results = []
     try:
         domain = urllib.parse.urlparse(data.url).netloc.replace("www.", "")
+        mode = f"FULL_AI_LLM ({domain})"
         
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=['--disable-blink-features=AutomationControlled'])
             context = browser.new_context(viewport={'width': 1920, 'height': 1080}, user_agent="Mozilla/5.0")
             page = context.new_page()
             
+            # Tối ưu: Chỉ tải những gì cần thiết để nhanh hơn
             page.goto(data.url, wait_until="domcontentloaded", timeout=25000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(2000)
             
-            for _ in range(3):
+            for _ in range(2): # Giảm xuống 2 lần cuộn để tiết kiệm thời gian
                 page.evaluate("window.scrollBy(0, 800)")
-                page.wait_for_timeout(1000)
+                page.wait_for_timeout(800)
 
-            # CHIẾN THUẬT 1: DÙNG TỪ ĐIỂN
-            if domain in SMART_KNOWLEDGE_BASE:
-                mode = f"SMART_DICT_MATCH ({domain})"
-                post_sel = SMART_KNOWLEDGE_BASE[domain]["post_item_sel"]
-                title_sel = SMART_KNOWLEDGE_BASE[domain]["title_sel"]
-                
-                items = page.locator(post_sel).all()
-                for item in items[:10]:
-                    t_el = item.locator(title_sel).first
-                    if t_el.count() > 0:
-                        title_text = t_el.inner_text().strip()
-                        url_link = t_el.get_attribute("href")
-                        
-                        if url_link and not url_link.startswith("http"):
-                            url_link = f"https://{domain}{url_link}"
-                            
-                        if title_text:
-                            results.append({"title": title_text, "url": url_link or data.url})
+            # ✨ TỐI ƯU JS: Loại bỏ rác và sửa lỗi .append thành .push()
+            raw_text = page.evaluate("""
+                () => {
+                    const junk = document.querySelectorAll('script, style, iframe, footer, nav, noscript');
+                    junk.forEach(el => el.remove());
+
+                    const elements = document.querySelectorAll('h1, h2, h3, h4, a, p');
+                    let content = [];
+                    
+                    elements.forEach(el => {
+                        let text = el.innerText.trim();
+                        if (text.length < 5) return; 
+
+                        if (el.tagName === 'A' && el.href.startsWith('http')) {
+                            if (text.length > 20) {
+                                content.push(`[LINK_BAI_VIET]: ${text} | URL: ${el.href}`);
+                            }
+                        } else {
+                            content.push(`${el.tagName}: ${text}`);
+                        }
+                    });
+                    
+                    return content.join('\\n').slice(0, 12000); 
+                }
+            """)
             
-            # CHIẾN THUẬT 2: AI TỰ ĐOÁN
-            else:
-                mode = f"SMART_AI_GUESS (Unknown Site: {domain})"
-                links = page.locator("a").all()
-                seen_urls = set()
+            # Giới hạn token gửi đi
+            safe_text = raw_text[:12000] 
+
+            # Dùng {{ }} để Python không hiểu lầm JSON là biến
+            prompt = f"""
+            Bạn là một chuyên gia phân tích dữ liệu. Hãy trích xuất thông tin từ nội dung web thô của trang {domain}.
+            
+            YÊU CẦU:
+            1. Trả về mảng JSON duy nhất.
+            2. Nếu nội dung có [LINK_BAI_VIET], hãy ưu tiên sử dụng URL đi kèm đó cho trường "link".
+            3. Nếu link thiếu domain, hãy tự động nối thêm https://{domain}.
+            
+            ĐỊNH DẠNG JSON:
+            [
+              {{
+                "title": "Tiêu đề",
+                "link": "URL chính xác",
+                "description": "Tóm tắt ngắn",
+                "topic": "Chủ đề",
+                "sentiment": "Tích cực | Tiêu cực | Trung lập",
+                "sentiment_reason": "Lý do ngắn",
+                "detailed_analysis": "Phân tích sâu (khoảng 100 chữ)",
+                "tags": ["Tag1", "Tag2"]
+              }}
+            ]
+
+            NỘI DUNG:
+            {safe_text}
+            """
+
+            # 🛠 XỬ LÝ LỖI 429 (QUOTA) VÀ CÁC LỖI AI
+            try:
+                model = genai.GenerativeModel('gemini-2.5-flash')
+                response = model.generate_content(prompt)
                 
-                for link in links:
-                    try:
-                        raw_text = link.inner_text().strip()
-                        url_link = link.get_attribute("href")
-                        
-                        if not url_link or not raw_text: continue
-                            
-                        lines = [line.strip() for line in raw_text.split('\n') if len(line.strip()) > 10]
-                        if not lines: continue
-                            
-                        best_title = max(lines, key=len)
-                        
-                        if len(best_title) > 20 and url_link not in seen_urls:
-                            if not url_link.startswith("http"):
-                                url_link = f"https://{domain}{url_link}"
-                            results.append({"title": best_title, "url": url_link})
-                            seen_urls.add(url_link)
-                            
-                        if len(results) >= 10: break
-                    except Exception:
-                        continue
+                if not response.text:
+                    raise Exception("AI không trả về kết quả")
+                    
+                json_string = clean_json_string(response.text)
+                results = json.loads(json_string)
+                
+            except Exception as ai_err:
+                if "429" in str(ai_err):
+                    return {"status": "error", "message": "Hệ thống AI đang bận (hết Quota), vui lòng đợi 60s."}
+                return {"status": "error", "message": f"Lỗi AI: {str(ai_err)}"}
 
             browser.close()
             
         return {"status": "success", "mode": mode, "total_found": len(results), "data": results}
         
     except Exception as e:
-        return {"error": f"Lỗi khi chạy Smart Auto: {str(e)}"}
+        return {"status": "error", "message": f"Lỗi hệ thống: {str(e)}"}
 
 @app.post("/api/v1/crawl-test/smart-auto", tags=["Test Crawl"])
 async def test_smart_auto(payload: SmartPayload):
@@ -372,7 +395,7 @@ async def test_smart_auto(payload: SmartPayload):
 
 
 # =====================================================================
-# 6. BỘ CÔNG CỤ CRAWL ĐA NĂNG MỚI (KIẾN TRÚC RAW DATA FETCHING)
+# BỘ CÔNG CỤ CRAWL ĐA NĂNG MỚI (KIẾN TRÚC RAW DATA FETCHING)
 # =====================================================================
 class UniversalCrawlPayload(BaseModel):
     method: str  
@@ -426,26 +449,21 @@ def execute_universal_crawl(payload: UniversalCrawlPayload):
 async def run_universal_crawl_test(payload: UniversalCrawlPayload):
     return await run_in_threadpool(execute_universal_crawl, payload)
 
-# =====================================================================
-# 7. CHỨC NĂNG CELERY TASK QUEUE (HÀNG ĐỢI BẤT ĐỒNG BỘ)
-# =====================================================================
-from pydantic import BaseModel
 
+# =====================================================================
+# CHỨC NĂNG CELERY TASK QUEUE (HÀNG ĐỢI BẤT ĐỒNG BỘ)
+# =====================================================================
 class StartTaskPayload(BaseModel):
     url: str
 
-# API 1: Giao việc (Nhận url từ Body thay vì Query Params để bảo mật hơn)
 @app.post("/api/v1/tasks/start-crawl", tags=["Task Queue"])
 async def start_crawl_task(payload: StartTaskPayload):
-    # Giao việc cho Celery
     task = run_smart_crawl_task.delay(payload.url)
     return {"status": "Processing", "task_id": task.id}
 
-# API 2: Hỏi thăm tiến độ
 @app.get("/api/v1/tasks/{task_id}", tags=["Task Queue"])
 async def get_task_status(task_id: str):
     task_result = celery_app.AsyncResult(task_id)
-    
     result = {
         "task_id": task_id,
         "task_status": task_result.state,
@@ -463,20 +481,18 @@ async def get_task_status(task_id: str):
     return result
 
 
-
-import json
-import os
-
+# =====================================================================
+# TỰ ĐỘNG LÊN LỊCH & LỊCH SỬ CÀO (SCHEDULE & HISTORY)
+# =====================================================================
 SCHEDULE_DB = "schedules.json"
 
 class UserSchedule(BaseModel):
     keyword: str
-    time: str  # Định dạng "HH:MM" (VD: "14:30")
+    time: str  
     is_active: bool = True
 
 @app.post("/api/v1/schedules", tags=["Auto Schedule"])
 async def create_schedule(data: UserSchedule):
-    # 1. Đọc danh sách lịch cũ từ file
     schedules = []
     if os.path.exists(SCHEDULE_DB):
         with open(SCHEDULE_DB, "r", encoding="utf-8") as f:
@@ -485,23 +501,19 @@ async def create_schedule(data: UserSchedule):
             except:
                 pass
     
-    # 2. Thêm lịch mới vào
     schedules.append({
         "keyword": data.keyword, 
         "time": data.time, 
         "is_active": data.is_active
     })
     
-    # 3. Ghi đè lại vào file
     with open(SCHEDULE_DB, "w", encoding="utf-8") as f:
         json.dump(schedules, f, ensure_ascii=False, indent=4)
         
     return {"status": "success", "message": f"Đã lên lịch! Sẽ tự động cào '{data.keyword}' lúc {data.time}"}
+
 @app.get("/api/v1/schedules", tags=["Auto Schedule"])
 async def get_schedules():
-    import json
-    import os
-    SCHEDULE_DB = "schedules.json"
     if os.path.exists(SCHEDULE_DB):
         with open(SCHEDULE_DB, "r", encoding="utf-8") as f:
             try:
@@ -509,19 +521,12 @@ async def get_schedules():
             except:
                 return []
     return []
-# =====================================================================
-# 8. API LẤY LỊCH SỬ CÀO TỰ ĐỘNG (DÀNH CHO TRANG LỊCH SỬ AUTO)
-# =====================================================================
-# ĐỔI ĐƯỜNG DẪN Ở ĐÂY ĐỂ KHÔNG ĐỤNG VỚI HISTORY CŨ
+
 @app.get("/api/v1/schedules/history", tags=["Auto Schedule"])
 async def get_auto_history():
-    import json
-    import os
-    
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     HISTORY_DB = os.path.join(BASE_DIR, "auto", "history.json")
     
-    # === GẮN CAMERA ĐỂ THEO DÕI ===
     print(f"👉 [DEBUG API] FastAPI đang mò tìm file tại: {HISTORY_DB}")
     
     if os.path.exists(HISTORY_DB):
@@ -529,7 +534,6 @@ async def get_auto_history():
         with open(HISTORY_DB, "r", encoding="utf-8") as f:
             try:
                 histories = json.load(f)
-            
                 return list(reversed(histories)) 
             except Exception as e:
                 print(f"👉 [DEBUG API] CÓ FILE NHƯNG BỊ LỖI ĐỌC: {e}")

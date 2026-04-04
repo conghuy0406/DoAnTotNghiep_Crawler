@@ -17,8 +17,6 @@ import FavoritesDetailView from '../pages/function/Favorites/favorites-detail-vi
 import SmartAutoView from '../pages/function/CrawlerAuto/crawler-auto-view';
 import AutoScheduleView from '../pages/function/AutoSchedule/auto-schedule-view';
 import AutoHistoryView from '../pages/function/AutoSchedule/history-view';
-
-// 🌟 THÊM IMPORT CHO TRANG QUẢN LÝ NGUỒN Ở ĐÂY
 import SourceManagerView from '../pages/function/SourceManager/source-manager-view'; 
 
 // ==========================================

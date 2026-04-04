@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import Sidebar from '../../../components/Sidebar';
-import { Loader2, Globe, ExternalLink, Newspaper, Zap, Play, Save } from 'lucide-react';
+import { Loader2, Globe, ExternalLink, Zap, Play, Save } from 'lucide-react';
 // ✅ IMPORT TRẠM THU GOM API ĐỂ LƯU CẤU HÌNH
 import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
 const CrawlerApiView: React.FC = () => {
-  // Thay keyword bằng apiUrl cho đúng chuẩn API
   const [apiUrl, setApiUrl] = useState('https://jsonplaceholder.typicode.com/posts'); 
   const [apiMethod, setApiMethod] = useState('GET');
   const [loading, setLoading] = useState(false);
@@ -14,7 +13,7 @@ const CrawlerApiView: React.FC = () => {
   const [foundTotal, setFoundTotal] = useState<number | null>(null);
 
   // ==========================================
-  // 1. HÀM THỰC THI (Đã sửa lại gọi đúng API)
+  // 1. HÀM THỰC THI (Đã tích hợp Bộ Lọc Thông Minh)
   // ==========================================
   const handleExecute = async () => {
     if (!apiUrl) return alert("Vui lòng nhập đường dẫn API");
@@ -25,35 +24,49 @@ const CrawlerApiView: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       
-      // ✅ Payload đúng chuẩn API theo Swagger BE của Hào
       const payloadData = {
         api_url: apiUrl,
         api_method: apiMethod
       };
 
-      // ✅ Gọi đúng endpoint API test
-      const res = await axios.post('http://localhost:8000/api/v1/crawl-test/api', payloadData, {
+      // Gọi API qua Proxy của Vite
+      const res = await axios.post('/api/v1/crawl-test/api', payloadData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (res.data && res.data.status === "success") {
         let rawData = res.data.data;
-        
-        // Backend (hàm auto_extract_json) đã trả về mảng [{title, url}]. Không cần DOMParser HTML nữa!
+        let dataToProcess: any[] = [];
+
+        // 🧠 BỘ LỌC THÔNG MINH: Xử lý mọi thể loại JSON API trả về
         if (Array.isArray(rawData)) {
-            const cleanedData = rawData.map((item: any) => ({
-              title: item.title || item.name || "Dữ liệu API không có tiêu đề",
+            dataToProcess = rawData; 
+        } else if (rawData && typeof rawData === 'object') {
+            const nestedArray = Object.values(rawData).find(val => Array.isArray(val));
+            if (nestedArray) {
+                dataToProcess = nestedArray as any[];
+            } else {
+                dataToProcess = [rawData];
+            }
+        }
+
+        // 🎨 Đổ dữ liệu ra UI và giữ lại JSON gốc
+        if (dataToProcess.length > 0) {
+            const cleanedData = dataToProcess.map((item: any) => ({
+              title: item.title || item.name || item.headline || item.city || `Dữ liệu ID: ${item.id || 'N/A'}`,
               link: item.url || item.link || item.href || "#",
-              description: "Dữ liệu được bóc tách tự động từ luồng JSON API.",
-              image: "" 
+              description: item.description || item.summary || item.body || "Dữ liệu dạng Object phức tạp (Xem chi tiết JSON bên dưới).",
+              rawData: item // LƯU LẠI TOÀN BỘ JSON GỐC ĐỂ HIỂN THỊ
             }));
             setNewsResults(cleanedData);
             setFoundTotal(cleanedData.length);
         } else {
-            alert("API trả về thành công nhưng không phải dạng danh sách (Array).");
+            alert("API trả về thành công nhưng không tìm thấy dữ liệu nào để hiển thị.");
+            setNewsResults([]);
+            setFoundTotal(0);
         }
       } else {
-         alert("Lỗi Backend: " + (res.data.error || "Không xác định"));
+         alert("Lỗi Backend: " + (res.data?.error || "Không xác định"));
       }
     } catch (err: any) {
       console.error(err);
@@ -103,7 +116,7 @@ const CrawlerApiView: React.FC = () => {
                </div>
             </div>
 
-            {/* THANH ĐIỀU KHIỂN (Đã thêm nút GET/POST và Nút LƯU) */}
+            {/* THANH ĐIỀU KHIỂN */}
             <div className="bg-white p-3 rounded-[30px] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-3">
               
               <select 
@@ -161,36 +174,57 @@ const CrawlerApiView: React.FC = () => {
               {newsResults.length > 0 ? (
                 <div className="space-y-6 pb-12">
                   {newsResults.map((item, index) => (
-                    <div key={index} className="bg-white rounded-[35px] shadow-sm border border-slate-100 p-7 flex gap-7 items-center group hover:shadow-xl hover:border-indigo-100 transition-all">
-                      <div className="w-32 h-24 bg-slate-100 rounded-3xl overflow-hidden flex-shrink-0 flex items-center justify-center text-indigo-100 bg-indigo-50/20">
-                          <Newspaper className="w-8 h-8 opacity-40" />
-                      </div>
-
-                      <div className="flex-1 pr-6">
-                        <div className="flex items-center gap-3 mb-2.5">
-                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-1.5">
-                              <Globe className="w-3.5 h-3.5" /> Nguồn API
-                           </span>
-                           <div className="w-1 h-1 rounded-full bg-slate-200"></div>
-                           <span className="text-[9px] font-bold text-emerald-400">Trích xuất thành công</span>
+                    <div key={index} className="bg-white rounded-[35px] shadow-sm border border-slate-100 p-7 flex flex-col gap-5 group hover:shadow-xl hover:border-indigo-100 transition-all">
+                      
+                      {/* PHẦN HEADER CỦA CARD */}
+                      <div className="flex gap-7 items-start">
+                        <div className="w-20 h-20 bg-slate-100 rounded-3xl overflow-hidden flex-shrink-0 flex items-center justify-center text-indigo-100 bg-indigo-50/20">
+                            <Zap className="w-8 h-8 opacity-40 text-indigo-500" />
                         </div>
-                        
-                        <h3 className="font-bold text-slate-800 leading-tight mb-3 line-clamp-1 text-lg group-hover:text-indigo-600 transition-colors">
-                          {item.title}
-                        </h3>
-                        <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed italic">
-                          {item.description}
-                        </p>
+
+                        <div className="flex-1 pr-6 pt-1">
+                          <div className="flex items-center gap-3 mb-2.5">
+                             <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest italic flex items-center gap-1.5">
+                                <Globe className="w-3.5 h-3.5" /> Dữ liệu API bóc tách
+                             </span>
+                             <div className="w-1 h-1 rounded-full bg-slate-200"></div>
+                             <span className="text-[9px] font-bold text-emerald-500">Thành công</span>
+                          </div>
+                          
+                          <h3 className="font-bold text-slate-800 leading-tight mb-2 line-clamp-1 text-lg group-hover:text-indigo-600 transition-colors">
+                            {item.title}
+                          </h3>
+                          {item.description && (
+                            <p className="text-sm text-slate-500 line-clamp-2 leading-relaxed italic">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {item.link !== "#" && (
+                          <a 
+                             href={item.link} 
+                             target="_blank" 
+                             rel="noopener noreferrer"
+                             className="flex-shrink-0 bg-slate-50 text-slate-400 p-4 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all active:scale-90"
+                          >
+                             <ExternalLink className="w-5 h-5" />
+                          </a>
+                        )}
                       </div>
 
-                      <a 
-                         href={item.link} 
-                         target="_blank" 
-                         rel="noopener noreferrer"
-                         className="flex-shrink-0 bg-slate-50 text-slate-400 p-4 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all active:scale-90"
-                      >
-                         <ExternalLink className="w-5 h-5" />
-                      </a>
+                      {/* PHẦN ĐỈNH CAO: KHUNG HIỂN THỊ RAW JSON */}
+                      <div className="mt-2 bg-[#0F172A] rounded-2xl p-5 overflow-x-auto relative border border-slate-800 shadow-inner max-h-80 overflow-y-auto custom-scrollbar">
+                        <div className="sticky left-0 top-0 w-full flex justify-end mb-2">
+                           <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest bg-slate-800/50 px-3 py-1 rounded-md">
+                             Nội dung JSON gốc
+                           </span>
+                        </div>
+                        <pre className="text-[13px] text-emerald-400 font-mono leading-relaxed">
+                          {JSON.stringify(item.rawData, null, 2)}
+                        </pre>
+                      </div>
+
                     </div>
                   ))}
                 </div>
