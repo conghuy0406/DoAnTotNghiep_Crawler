@@ -13,12 +13,18 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [userRole, setUserRole] = useState<string | null>(localStorage.getItem('role'));
 
   // State quản lý mở/đóng của các menu Dropdown
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     'Dịch vụ thu thập': location.pathname.includes('crawler') || location.pathname.includes('smart-auto'),
     'Hệ thống tự động': location.pathname.includes('auto')
   });
+
+  // Cập nhật Role mỗi khi thay đổi URL (đảm bảo đồng bộ sau khi đăng nhập/đăng xuất)
+  useEffect(() => {
+    setUserRole(localStorage.getItem('role'));
+  }, [location.pathname]);
 
   const toggleMenu = (menuName: string) => {
     setOpenMenus(prev => ({
@@ -27,10 +33,13 @@ const Sidebar: React.FC<SidebarProps> = () => {
     }));
   };
 
+  const isAdmin = userRole === 'admin';
+
   // Cấu trúc Menu
   const menuItems = [
     { name: 'Trang chủ', path: '/home', icon: <Home size={18} /> },
-    { name: 'Hồ sơ cá nhân', path: '/profile', icon: <UserIcon /> }, // Fake icon cho giống form mẫu
+    ...(isAdmin ? [{ name: 'Quản lý người dùng', path: '/users', icon: <ShieldAlert size={18} /> }] : []),
+    { name: 'Hồ sơ cá nhân', path: '/profile', icon: <UserIcon /> }, 
     { 
       name: 'Dịch vụ thu thập', 
       icon: <Layers size={18} />,
@@ -157,6 +166,8 @@ const Sidebar: React.FC<SidebarProps> = () => {
             onClick={() => {
               localStorage.removeItem('token');
               localStorage.removeItem('role');
+              localStorage.removeItem('username');
+              localStorage.removeItem('user_id');
               navigate('/login');
             }}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded text-blue-200/70 hover:bg-rose-500 hover:text-white transition-colors group"

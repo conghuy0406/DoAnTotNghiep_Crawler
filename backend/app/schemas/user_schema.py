@@ -1,18 +1,27 @@
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 
-# Dùng khi User Đăng ký
-class UserCreate(BaseModel):
+class UserBase(BaseModel):
     email: EmailStr
+    full_name: Optional[str] = None
+    role: Optional[str] = "user"  # Thêm role
+
+class UserCreate(UserBase):
     password: str
-    full_name: str | None = None
 
-# Dùng để trả về thông tin User (Không trả về password!)
-class UserResponse(BaseModel):
+class UserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    password: Optional[str] = None
+    role: Optional[str] = None
+
+class UserResponse(UserBase):
     id: str
-    email: EmailStr
-    full_name: str | None = None
-    
-# Dùng để trả về Token
+
+    class Config:
+        from_attributes = True
+
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: str  # Thêm role vào token response
