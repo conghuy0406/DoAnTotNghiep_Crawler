@@ -14,11 +14,11 @@ const HistoryDetailView: React.FC = () => {
     const fetchDetail = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(`http://localhost:8000/api/v1/history/${id}`, {
+        // ✅ Dùng đường dẫn tương đối
+        const response = await axios.get(`/api/v1/history/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
-        console.log("Dữ liệu thực tế từ BE:", response.data);
         setData(response.data);
         
         // Kiểm tra trạng thái bookmark từ DB
@@ -31,23 +31,30 @@ const HistoryDetailView: React.FC = () => {
         setLoading(false);
       }
     };
-    fetchDetail();
+    if (id) fetchDetail();
   }, [id]);
 
-  // Hàm xử lý Bookmark kết nối với API POST /bookmarks/{id}
-  const handleBookmark = async () => {
+  // ✅ HÀM TOGGLE BOOKMARK THÔNG MINH (Cho phép Bật/Tắt)
+  const handleToggleBookmark = async () => {
     try {
       const token = localStorage.getItem('token');
-      // Gọi đúng API như trong Swagger Hào đã test
-      await axios.post(`http://localhost:8000/api/v1/bookmarks/${id}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setIsBookmarked(true);
-      alert("Đã thêm báo cáo này vào mục yêu thích!");
+      const url = `/api/v1/bookmarks/${id}`;
+      const headers = { Authorization: `Bearer ${token}` };
+
+      if (isBookmarked) {
+        // Hủy lưu (DELETE)
+        await axios.delete(url, { headers });
+        setIsBookmarked(false);
+        alert("Đã xóa báo cáo khỏi mục yêu thích!");
+      } else {
+        // Thêm lưu (POST)
+        await axios.post(url, {}, { headers });
+        setIsBookmarked(true);
+        alert("Đã thêm báo cáo này vào mục yêu thích!");
+      }
     } catch (error) {
       console.error("Lỗi Bookmark:", error);
-      alert("Không thể thực hiện đánh dấu yêu thích.");
+      alert("Không thể thực hiện thao tác này. Vui lòng kiểm tra lại đăng nhập!");
     }
   };
 
@@ -66,7 +73,7 @@ const HistoryDetailView: React.FC = () => {
   const sentiment = data?.sentiment || "Trung lập";
 
   return (
-    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden font-sans">
       <Sidebar activePage="Lịch Sử Crawler" />
 
       <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden">
@@ -83,19 +90,19 @@ const HistoryDetailView: React.FC = () => {
                 Trở về danh sách
               </button>
 
+              {/* NÚT YÊU THÍCH THÔNG MINH */}
               <button 
-                onClick={handleBookmark}
-                disabled={isBookmarked}
-                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest transition-all shadow-sm border ${
+                onClick={handleToggleBookmark}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black uppercase tracking-widest transition-all shadow-sm border active:scale-95 ${
                   isBookmarked 
-                  ? 'bg-amber-50 text-amber-600 border-amber-200 cursor-default' 
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-500 hover:text-white hover:border-amber-500'
+                  ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600' 
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-amber-50 hover:text-amber-500 hover:border-amber-200'
                 }`}
               >
                 <svg className="w-4 h-4" fill={isBookmarked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.382-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                 </svg>
-                {isBookmarked ? "Đã Lưu" : "Lưu Yêu Thích"}
+                {isBookmarked ? "Bỏ Lưu" : "Lưu Yêu Thích"}
               </button>
             </div>
 

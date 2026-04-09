@@ -12,10 +12,13 @@ const AutoScheduleView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [schedules, setSchedules] = useState<any[]>([]);
 
-  // 1. TẢI DANH SÁCH LỊCH TRÌNH
+  // 1. TẢI DANH SÁCH LỊCH TRÌNH (Đã gắn bảo mật Token)
   const fetchSchedules = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/schedules');
+      const token = localStorage.getItem('token');
+      const res = await axios.get('/api/v1/schedules', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       setSchedules(res.data || []);
     } catch (error) {
       console.error("Lỗi tải lịch trình:", error);
@@ -29,7 +32,7 @@ const AutoScheduleView: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. LƯU LỊCH TRÌNH MỚI
+  // 2. LƯU LỊCH TRÌNH MỚI (Đã gắn bảo mật Token)
   const handleSaveSchedule = async () => {
     if (!keyword || !time) {
       alert("Vui lòng nhập đủ từ khóa và thời gian!");
@@ -37,16 +40,20 @@ const AutoScheduleView: React.FC = () => {
     }
     setLoading(true);
     try {
-      await axios.post('http://localhost:8000/api/v1/schedules', {
+      const token = localStorage.getItem('token');
+      await axios.post('/api/v1/schedules', {
         keyword: keyword,
         time: time,
         is_active: true
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
+      
       alert(`Đã lên lịch thành công! Hệ thống sẽ cào "${keyword}" lúc ${time} mỗi ngày.`);
       setKeyword('');
-      fetchSchedules(); // Tải lại danh sách
+      fetchSchedules(); // Tải lại danh sách ngay lập tức
     } catch (error) {
-      alert("Lỗi khi lưu lịch trình!");
+      alert("Lỗi khi lưu lịch trình! (Phiên đăng nhập có thể đã hết hạn)");
     } finally {
       setLoading(false);
     }

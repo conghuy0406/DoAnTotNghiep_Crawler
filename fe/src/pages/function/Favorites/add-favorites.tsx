@@ -24,13 +24,14 @@ const AddFavorites: React.FC<AddFavoritesProps> = ({ reportId, initialStatus, on
       return;
     }
 
-    const url = `http://localhost:8000/api/v1/bookmarks/${reportId}`;
+    // ✅ BỎ LOCALHOST: Dùng đường dẫn tương đối qua Proxy
+    const url = `/api/v1/bookmarks/${reportId}`;
     const token = localStorage.getItem('token');
 
     try {
       setLoading(true);
       
-      // Cấu hình Header vì BE của Hào có hệ thống Auth
+      // Cấu hình Header vì BE đã bật hệ thống Auth
       const config = {
         headers: { Authorization: `Bearer ${token}` }
       };
@@ -47,13 +48,15 @@ const AddFavorites: React.FC<AddFavoritesProps> = ({ reportId, initialStatus, on
         if (onStatusChange) onStatusChange(true);
       }
     } catch (error: any) {
-      // In lỗi gốc từ Backend ra console để Hào check
+      // In lỗi gốc từ Backend ra console để dễ check
       const serverError = error.response?.data?.detail;
       console.error("❌ Lỗi Backend gốc:", serverError || error.message);
       
       // Nếu lỗi 404, nghĩa là bài này chưa có trong DB universal_knowledge
       if (error.response?.status === 404) {
         alert("Bài viết này chưa được lưu vào hệ thống, không thể bookmark!");
+      } else if (error.response?.status === 401) {
+        alert("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại!");
       } else {
         alert("Lỗi: " + (serverError || "Không kết nối được server"));
       }

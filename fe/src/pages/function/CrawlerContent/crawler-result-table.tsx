@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ExtractResponse } from './types';
 
@@ -11,26 +11,36 @@ const CrawlerResultTable: React.FC<Props> = ({ data, loading }) => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
 
+  // Tự động kiểm tra xem bài này đã bookmark từ trước chưa
+  useEffect(() => {
+    if (data && data.is_bookmarked !== undefined) {
+      setIsBookmarked(data.is_bookmarked);
+    } else {
+      setIsBookmarked(false);
+    }
+  }, [data]);
+
   const handleToggleBookmark = async () => {
     if (!data?._id || bookmarkLoading) return;
     
     setBookmarkLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Nếu đã bookmark thì xóa (DELETE), chưa thì thêm (POST)
+      // Sử dụng đường dẫn tương đối để tránh lỗi CORS
       if (isBookmarked) {
-        await axios.delete(`http://localhost:8000/api/v1/bookmarks/${data._id}`, {
+        await axios.delete(`/api/v1/bookmarks/${data._id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setIsBookmarked(false);
       } else {
-        await axios.post(`http://localhost:8000/api/v1/bookmarks/${data._id}`, {}, {
+        await axios.post(`/api/v1/bookmarks/${data._id}`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setIsBookmarked(true);
       }
     } catch (error) {
       console.error("Lỗi thao tác Bookmark:", error);
+      alert("Lỗi Bookmark! Phiên đăng nhập có thể đã hết hạn.");
     } finally {
       setBookmarkLoading(false);
     }
@@ -69,6 +79,7 @@ const CrawlerResultTable: React.FC<Props> = ({ data, loading }) => {
                   ? 'bg-red-50 text-red-500 shadow-inner' 
                   : 'bg-slate-50 text-slate-300 hover:text-red-400 hover:bg-red-50'
               }`}
+              title={isBookmarked ? "Bỏ lưu Bookmark" : "Lưu vào Bookmark"}
             >
               <svg 
                 className={`w-6 h-6 transition-transform duration-300 ${isBookmarked ? 'scale-110 fill-current' : 'scale-100 group-hover:scale-125'}`} 

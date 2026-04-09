@@ -12,9 +12,13 @@ const HistoryView: React.FC = () => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
+    // TẢI LỊCH SỬ (Đã gắn bảo mật Token)
     const fetchHistory = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/schedules/history');
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/v1/schedules/history', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         setHistories(res.data || []);
       } catch (error) {
         console.error("Lỗi tải lịch sử:", error);

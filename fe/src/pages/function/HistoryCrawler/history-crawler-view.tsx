@@ -15,7 +15,8 @@ const HistoryCrawlerView: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:8000/api/v1/history/`, {
+      // ✅ Đã xóa localhost, dùng đường dẫn tương đối
+      const response = await axios.get(`/api/v1/history/`, {
         params: { page, limit: 10, keyword },
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -26,8 +27,11 @@ const HistoryCrawlerView: React.FC = () => {
         page: response.data.page,
         limit: response.data.limit
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Lỗi lấy lịch sử:", error);
+      if (error.response?.status === 401) {
+        alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
+      }
     } finally {
       setLoading(false);
     }
@@ -41,7 +45,8 @@ const HistoryCrawlerView: React.FC = () => {
   const handleToggleBookmark = async (id: string, currentlyBookmarked: boolean) => {
     try {
       const token = localStorage.getItem('token');
-      const url = `http://localhost:8000/api/v1/bookmarks/${id}`;
+      // ✅ Đã xóa localhost
+      const url = `/api/v1/bookmarks/${id}`;
       const headers = { Authorization: `Bearer ${token}` };
 
       if (currentlyBookmarked) {
@@ -59,7 +64,7 @@ const HistoryCrawlerView: React.FC = () => {
       
     } catch (error) {
       console.error("Lỗi xử lý Bookmark:", error);
-      alert("Không thể thực hiện thao tác này.");
+      alert("Không thể thực hiện thao tác này. Vui lòng thử lại!");
     }
   };
 
@@ -69,7 +74,7 @@ const HistoryCrawlerView: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
+    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden font-sans">
       <Sidebar activePage="Lịch Sử Crawler" />
 
       <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden relative">
@@ -93,9 +98,9 @@ const HistoryCrawlerView: React.FC = () => {
                   placeholder="Tìm kiếm từ khóa..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1 bg-transparent border-none px-4 py-2 text-sm font-bold focus:ring-0"
+                  className="flex-1 bg-transparent border-none px-4 py-2 text-sm font-bold focus:ring-0 outline-none"
                 />
-                <button type="submit" className="bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
+                <button type="submit" className="bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </button>
               </form>
@@ -114,12 +119,21 @@ const HistoryCrawlerView: React.FC = () => {
                 <tbody className="divide-y divide-slate-50">
                   {loading ? (
                     <tr><td colSpan={3} className="px-8 py-24 text-center"><div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></td></tr>
+                  ) : historyData.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-8 py-32 text-center text-slate-300">
+                        <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p className="text-[11px] font-black uppercase tracking-[0.3em]">Chưa có dữ liệu lịch sử nào</p>
+                      </td>
+                    </tr>
                   ) : historyData.map((item) => (
                     <tr key={item._id} className="hover:bg-indigo-50/20 transition-all group">
                       <td className="px-8 py-6">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-800 uppercase tracking-tight text-sm group-hover:text-indigo-600 transition-colors italic">
-                            {item.keyword}
+                            {item.keyword || "KHÔNG RÕ TỪ KHÓA"}
                           </span>
                           <span className="text-[10px] font-bold text-slate-400 uppercase mt-1">
                             {new Date(item.created_at).toLocaleString('vi-VN')}
@@ -170,20 +184,20 @@ const HistoryCrawlerView: React.FC = () => {
               {/* Pagination */}
               <div className="p-8 bg-slate-50/30 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Trang {pagination.page} / {Math.ceil(pagination.total / pagination.limit)}
+                  Trang {pagination.page} / {Math.max(1, Math.ceil(pagination.total / pagination.limit))}
                 </p>
                 <div className="flex gap-2">
                   <button 
                     disabled={pagination.page === 1} 
                     onClick={() => fetchHistory(pagination.page - 1, searchTerm)}
-                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all"
+                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all active:scale-95"
                   >
                     Trước
                   </button>
                   <button 
                     disabled={pagination.page * pagination.limit >= pagination.total}
                     onClick={() => fetchHistory(pagination.page + 1, searchTerm)}
-                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all"
+                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all active:scale-95"
                   >
                     Sau
                   </button>

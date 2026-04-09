@@ -1,5 +1,3 @@
-# FILE: backend/app/services/searcher.py
-
 from playwright.sync_api import sync_playwright
 import time
 import random
@@ -16,15 +14,11 @@ from app.services.analyst import analyze_content_universal
 FAKE_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 # ==========================================
-# [MỚI] HÀM CẬP NHẬT TIẾN TRÌNH VÀO DB
+# 0. HÀM CẬP NHẬT TIẾN TRÌNH VÀO DB
 # ==========================================
 def update_task_progress(task_id, progress, message):
-    """
-    Cập nhật phần trăm tiến trình vào MongoDB để Frontend hiển thị thanh loading.
-    """
     if not task_id: return
     try:
-        # Tạo kết nối DB độc lập cho luồng chạy ngầm
         client = MongoClient("mongodb://localhost:27017")
         client.crawler_db.tasks.update_one(
             {"_id": task_id}, 
@@ -41,12 +35,11 @@ def crawl_detail_content(context, link_data):
     url = link_data['url']
     selectors = link_data.get('selectors', {})
     
-    print(f"      🕷️  [Worker] Đang đọc: {link_data['title'][:30]}...")
+    print(f"      🕷️  [Worker] Đang bóc tách: {link_data['title'][:40]}...")
     page = context.new_page()
     try:
         page.goto(url, timeout=30000, wait_until="domcontentloaded")
         
-        # Ưu tiên selector cấu hình, nếu không có thì thử các selector phổ biến
         content_sel = selectors.get('detail_content')
         if not content_sel:
              content_sel = "article, .fck_detail, .singular-content, .content, body"
@@ -68,72 +61,91 @@ def crawl_detail_content(context, link_data):
     return link_data
 
 # ==========================================
-# 2. SEARCHER (DUCKDUCKGO & GOOGLE PROXY)
+# 2. SEARCHER (TÌM KIẾM TRỰC TIẾP & TƯƠNG TÁC)
 # ==========================================
 def search_one_source_sync(context, config, keyword, limit_pages=1):
     source_name = config.get('name', 'Unknown')
     base_url = config.get('base_url', '').rstrip('/')
+    search_template = config.get('search_url_template', '')
+    selectors = config.get('selectors', {})
+    
+    search_input_sel = selectors.get('search_input')
+    search_button_sel = selectors.get('search_button')
+    post_item_sel = selectors.get('post_item', 'article')
+    title_link_sel = selectors.get('title_link', 'a')
+    
     safe_keyword = quote(keyword.strip()) 
-    
     use_proxy = False
-    
-    if "dantri.com.vn" in base_url:
-        search_url = f"https://dantri.com.vn/tim-kiem/{safe_keyword.replace('%20', '+')}.htm"
-        post_item_sel = "article.article-item"
-        title_link_sel = "h3.article-title a"
-        print(f"   -> 🔎 [{source_name}] Tìm kiếm trực tiếp...")
-    else:
-        use_proxy = True
-        domain = base_url.replace("https://", "").replace("http://", "").replace("/", "")
-        search_url = f"https://html.duckduckgo.com/html/?q=site:{domain}+{safe_keyword}"
-        post_item_sel = "div.result" 
-        title_link_sel = "h2.result__title a"
-        print(f"   -> 🔎 [{source_name}] Tìm kiếm qua DuckDuckGo Proxy...")
-
     results = []
     page = context.new_page()
     
     try:
-        page.goto(search_url, timeout=30000, wait_until="domcontentloaded")
-        time.sleep(2) 
+        # CÁCH 1: TƯƠNG TÁC (Gõ phím & Click)
+        if search_input_sel:
+            print(f"   -> 🔎 [{source_name}] Tương tác (Mở web, click, gõ phím)...")
+            start_url = search_template if search_template else base_url
+            page.goto(start_url, timeout=60000, wait_until="domcontentloaded")
+            time.sleep(2)
+            if search_button_sel:
+                try:
+                    page.locator(search_button_sel).first.click(timeout=5000)
+                    time.sleep(1)
+                except: pass
+            try:
+                page.locator(search_input_sel).first.fill(keyword)
+                page.locator(search_input_sel).first.press("Enter")
+                print(f"   -> ⌨️ Đã gõ chữ '{keyword}' và nhấn Enter.")
+                time.sleep(4)
+            except Exception as e:
+                print(f"      ❌ Lỗi gõ từ khóa: {e}")
+                return []
+                
+        # CÁCH 2: LINK TÌM KIẾM ĐỘNG
+        elif "{keyword}" in search_template:
+            search_query = safe_keyword.replace('%20', '+')
+            search_url = search_template.replace("{keyword}", search_query)
+            print(f"   -> 🚀 Đang load thẳng link: {search_url}")
+            page.goto(search_url, timeout=60000, wait_until="load")
+            time.sleep(3)
+
+        # CÁCH 3: DÂN TRÍ HOẶC DUCKDUCKGO PROXY
+        elif "dantri.com.vn" in base_url:
+            search_url = f"https://dantri.com.vn/tim-kiem/{safe_keyword.replace('%20', '+')}.htm"
+            post_item_sel = "article.article-item"
+            title_link_sel = "h3.article-title a"
+            page.goto(search_url, timeout=60000, wait_until="load")
+            time.sleep(3)
+        else:
+            use_proxy = True
+            domain = base_url.replace("https://", "").replace("http://", "").replace("/", "")
+            search_url = f"https://html.duckduckgo.com/html/?q=site:{domain}+{safe_keyword}"
+            post_item_sel = "div.result" 
+            title_link_sel = "h2.result__title a"
+            page.goto(search_url, timeout=60000, wait_until="load")
+            time.sleep(3)
             
+        # BÓC TÁCH LINK TỪ KẾT QUẢ
         try:
-            page.wait_for_selector(post_item_sel, timeout=5000)
+            page.wait_for_selector(post_item_sel, timeout=10000)
+            items = page.locator(post_item_sel).all()
+            print(f"   -> ✅ Giao diện đã load! Quét được {len(items)} khối chứa tin.")
         except:
+            print(f"   -> ⚠️ Lỗi: Không tìm thấy khối bài viết nào (Tọa độ {post_item_sel} sai hoặc web trắng).")
             return []
 
-        items = page.locator(post_item_sel).all()
-        
         for item in items:
             try:
                 link_el = item.locator(title_link_sel).first
+                if not link_el or not link_el.count(): continue
 
-                if not link_el or not link_el.count(): 
-                    continue
-
-                title = link_el.inner_text().strip() or "No Title"
-                href = link_el.get_attribute("href")
-
-                if not href: continue
+                title = link_el.inner_text().strip()
+                if not title: continue 
                 
-                # Giải mã URL DuckDuckGo
-                if "duckduckgo.com/l/?uddg=" in href:
-                    import urllib.parse
-                    parsed_url = urllib.parse.urlparse(href)
-                    qs = urllib.parse.parse_qs(parsed_url.query)
-                    if 'uddg' in qs:
-                        href = qs['uddg'][0]
-
-                # Bỏ link rác
-                if "google.com" in href or "duckduckgo.com" in href: continue 
+                href = link_el.get_attribute("href")
+                if not href: continue
                 
                 if href and not href.startswith("http"):
                     href = base_url + '/' + href.lstrip('/')
-                
-                if any(x in href for x in ["/video", "/podcast", "/emagazine"]): continue
-
-                if domain not in href and use_proxy:
-                    continue
 
                 results.append({
                     "source_name": source_name,
@@ -141,10 +153,11 @@ def search_one_source_sync(context, config, keyword, limit_pages=1):
                     "url": href,
                     "selectors": config.get('selectors', {})
                 })
-            except:
-                continue
+            except: continue
+            
+        print(f"   -> 📥 Lấy thành công {len(results)} link thô (đã có tiêu đề + url).")
     except Exception as e:
-        print(f"      ❌ Lỗi searcher: {e}")
+        print(f"      ❌ Lỗi trình duyệt: {e}")
     finally:
         page.close()
         
@@ -157,40 +170,23 @@ def run_browser_sync(configs, keyword, limit, task_id=None):
     final_data = [] 
     valid_articles_for_ai = [] 
     
-    update_task_progress(task_id, 10, f"Đang khởi động Bot để tìm kiếm từ khóa '{keyword}'...")
+    update_task_progress(task_id, 10, f"Đang khởi động Bot để tìm '{keyword}'...")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False) # Để False để bạn xem bot chạy
-        context = browser.new_context(
-            user_agent=FAKE_USER_AGENT, 
-            viewport={"width": 1280, "height": 720}
-        )
+        browser = p.chromium.launch(headless=False) 
+        context = browser.new_context(user_agent=FAKE_USER_AGENT, viewport={"width": 1280, "height": 720})
         
         all_links = []
-        now = datetime.now()
-        last_year = now.year - 1 
-        
-        print(f"\n🔎 Đang tìm kiếm: '{keyword}'...")
+        print(f"\n🔎 Đang thực thi tìm kiếm: '{keyword}'...")
 
         for conf in configs:
             raw_links = search_one_source_sync(context, conf, keyword, limit_pages=1)
             
             clean_links = []
-            years_to_block = [str(y) for y in range(2015, last_year)] 
-
             for item in raw_links:
                 url = item.get('url', '')
-                title = item.get('title', '').lower()
-                keyword_lower = keyword.lower().strip()
-                
-                is_too_old = any(f"/{y}/" in url or f"-{y}-" in url for y in years_to_block)
-                if is_too_old: continue 
-
-                key_parts = keyword_lower.split()
-                if key_parts:
-                    match_count = sum(1 for part in key_parts if part in title)
-                    if (match_count / len(key_parts)) < 0.2: continue
-
+                if not url or url == "#": continue
+                # Đã loại bỏ bộ lọc ngày tháng và ký tự gắt gao
                 clean_links.append(item)
 
             all_links.extend(clean_links)
@@ -200,15 +196,14 @@ def run_browser_sync(configs, keyword, limit, task_id=None):
         total_items = len(items_to_crawl)
 
         if total_items == 0:
-            update_task_progress(task_id, 100, f"Không tìm thấy bài viết nào hợp lệ cho từ khóa '{keyword}'.")
+            update_task_progress(task_id, 100, f"Mặc dù web đã load nhưng không trích xuất được link nào cho từ '{keyword}'.")
         else:
-            update_task_progress(task_id, 30, f"Đã tìm thấy {len(all_links)} bài. Bắt đầu đọc chi tiết {total_items} bài...")
+            update_task_progress(task_id, 30, f"Đã chốt {total_items} bài viết tốt nhất. Bắt đầu đọc chi tiết...")
 
         # --- GIAI ĐOẠN 2: CRAWL CHI TIẾT ---
         for i, item in enumerate(items_to_crawl):
-            # Tính % tiến độ (Chạy từ 30% đến 70%)
             current_pct = 30 + int((i / max(total_items, 1)) * 40)
-            update_task_progress(task_id, current_pct, f"Đang đọc nội dung bài viết {i+1}/{total_items}...")
+            update_task_progress(task_id, current_pct, f"Đang đọc nội dung {i+1}/{total_items}...")
             
             detailed_item = crawl_detail_content(context, item)
             final_data.append(detailed_item)
@@ -226,35 +221,48 @@ def run_browser_sync(configs, keyword, limit, task_id=None):
     if not valid_articles_for_ai:
         print("⚠️ Không có bài viết hợp lệ để phân tích.")
     else:
-        update_task_progress(task_id, 80, "Đang gửi dữ liệu cho AI Đa Năng (Gemini) phân tích...")
+        update_task_progress(task_id, 80, "Đang gửi dữ liệu cho AI phân tích...")
         print(f"\n🤖 Đang gửi {len(valid_articles_for_ai)} bài viết cho AI...")
         
-        try:
-            ai_result = analyze_content_universal(valid_articles_for_ai, keyword)
-            
-            ai_result["keyword"] = keyword
-            ai_result["created_at"] = datetime.now()
-            ai_result["source_count"] = len(valid_articles_for_ai)
-            
-            update_task_progress(task_id, 90, "Đang lưu kết quả AI vào cơ sở dữ liệu...")
+        MAX_RETRIES = 3
+        for attempt in range(MAX_RETRIES):
             try:
+                ai_result = analyze_content_universal(valid_articles_for_ai, keyword)
+                break 
+            except Exception as e:
+                error_msg = str(e)
+                print(f"      ❌ Lỗi AI (Lần {attempt + 1}/{MAX_RETRIES}): {error_msg}")
+                if "503" in error_msg or "UNAVAILABLE" in error_msg or "429" in error_msg:
+                    if attempt < MAX_RETRIES - 1:
+                        wait_time = 2 ** attempt 
+                        print(f"      ⚠️ Gemini API đang quá tải. Đợi {wait_time}s rồi thử lại...")
+                        time.sleep(wait_time)
+                    else:
+                        print("      ❌ Đã thử lại nhiều lần nhưng Gemini vẫn sập.")
+                else:
+                    break 
+        
+        if ai_result:
+            try:
+                ai_result["keyword"] = keyword
+                ai_result["created_at"] = datetime.now()
+                ai_result["source_count"] = len(valid_articles_for_ai)
+                
+                ai_result["raw_articles"] = valid_articles_for_ai
+
+                update_task_progress(task_id, 90, "Đang lưu Báo cáo AI...")
                 client = MongoClient("mongodb://localhost:27017")
                 db_sync = client.crawler_db
                 db_sync.universal_knowledge.insert_one(ai_result)
                 ai_result['_id'] = str(ai_result['_id'])
                 client.close()
-                print("✅ Đã lưu DB thành công.")
+                print("✅ Đã lưu Báo cáo vào DB.")
             except Exception as e:
                 print(f"⚠️ Lỗi DB: {e}")
                 if '_id' in ai_result: del ai_result['_id']
 
-        except Exception as e:
-            print(f"❌ Lỗi AI: {e}")
-
-    # Báo cáo cuối cùng
-    update_task_progress(task_id, 95, "Đang hoàn tất đóng gói dữ liệu...")
+    update_task_progress(task_id, 95, "Hoàn tất!")
     
-    # In Báo cáo ra Terminal
     print("\n" + "="*60)
     print(f"🧠 BÁO CÁO THÔNG MINH: {keyword.upper()}")
     print("="*60)
@@ -272,19 +280,18 @@ def run_browser_sync(configs, keyword, limit, task_id=None):
     }
 
 # ==========================================
-# 4. HÀM WRAPPER & KHÁC
+# 4. HÀM WRAPPER & CRAWL LINK TRỰC TIẾP
 # ==========================================
 async def search_by_config(keyword: str, selected_sources: list = None, limit: int = 5, task_id: str = None):
     query = {}
     if selected_sources: query["_id"] = {"$in": selected_sources}
     configs = await db.websites.find(query).to_list(length=100)
     if not configs: return []
-    
-    # Kích hoạt Playwright ngầm và truyền task_id
     data = await run_in_threadpool(run_browser_sync, configs, keyword, limit, task_id)
     return data
 
 def crawl_single_url(url: str):
+    """Hàm này dùng để cào 1 đường link duy nhất (ĐÃ KHÔI PHỤC)"""
     print(f"🚀 [Direct Crawl] Đang truy cập: {url}")
     data = {}
     

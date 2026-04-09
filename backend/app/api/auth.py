@@ -8,7 +8,6 @@ import uuid
 
 router = APIRouter()
 
-# Cấu hình để Swagger biết đường dẫn nào dùng để đăng nhập lấy Token
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 # --- HÀM PHỤ TRỢ: Lấy User hiện tại từ Token ---
@@ -30,38 +29,28 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
         
-    # Chuyển _id thành id string để trả về
     user["id"] = str(user["_id"])
     return user
 
-# --- API 1: Đăng ký ---
 @router.post("/register", response_model=UserResponse)
 async def register(user_in: UserCreate):
-    # 1. Kiểm tra email đã tồn tại chưa
     existing_user = await db.users.find_one({"email": user_in.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email này đã được sử dụng")
     
-    # 2. Tạo user mới với password đã mã hóa
     new_user = {
         "_id": str(uuid.uuid4()),
         "email": user_in.email,
         "hashed_password": get_password_hash(user_in.password),
         "full_name": user_in.full_name
     }
-    
     await db.users.insert_one(new_user)
-    
-    # 3. Trả về thông tin (mapping _id -> id)
     new_user["id"] = new_user["_id"]
     return new_user
 
-# --- API 2: Đăng nhập (Lấy Token) ---
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # Lưu ý: form_data.username ở đây chính là email
     user = await db.users.find_one({"email": form_data.username})
-    
     if not user or not verify_password(form_data.password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,11 +58,9 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Tạo Token
     access_token = create_access_token(data={"sub": user["email"]})
     return {"access_token": access_token, "token_type": "bearer"}
 
-# --- API 3: Xem thông tin bản thân (Bảo vệ bằng Token) ---
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user

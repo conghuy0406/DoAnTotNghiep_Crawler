@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios'; // Bổ sung axios cho đồng bộ
 import Sidebar from '../../../components/Sidebar';
 import CrawlerResultTable from './crawler-result-table';
 import { ExtractResponse } from './types';
@@ -13,24 +14,31 @@ const CrawlerContentView: React.FC = () => {
     setLoading(true);
     setData(null); 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url })
+      // 🔒 Lấy Token để xác thực
+      const token = localStorage.getItem('token');
+      
+      // Gọi API qua Proxy với Axios
+      const response = await axios.post('/api/v1/url', { url: url }, {
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        }
       });
-      const result = await response.json();
+      
+      const result = response.data;
+      
       if (result.message === "Đọc bài viết thành công!" && result.data) {
         setData(result.data); 
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Lỗi kết nối:", error);
+      alert("Lỗi khi đọc bài! (Backend từ chối hoặc Token hết hạn)");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    /* SỬA: Cấu trúc flex h-screen và overflow-hidden để cố định khung hình */
     <div className="flex h-screen bg-[#F8F9FF] overflow-hidden">
       
       {/* 1. SIDEBAR CỐ ĐỊNH (FIXED) */}

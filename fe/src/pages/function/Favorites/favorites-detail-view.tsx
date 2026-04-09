@@ -7,12 +7,16 @@ const FavoritesListView: React.FC = () => {
   const [bookmarks, setBookmarks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  
+  // Tự động lấy tên User để xưng hô cho thân thiện
+  const userName = localStorage.getItem('username') || 'Bạn';
 
   const fetchBookmarks = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const res = await axios.get('http://localhost:8000/api/v1/bookmarks/', {
+      // ✅ Đổi thành đường dẫn tương đối
+      const res = await axios.get('/api/v1/bookmarks/', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setBookmarks(res.data.data || []);
@@ -32,13 +36,15 @@ const FavoritesListView: React.FC = () => {
     e.stopPropagation(); // Ngăn việc bị navigate vào trang chi tiết
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:8000/api/v1/bookmarks/${id}`, {
+      // ✅ Đổi thành đường dẫn tương đối
+      await axios.delete(`/api/v1/bookmarks/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Xóa khỏi UI ngay lập tức
       setBookmarks(prev => prev.filter(item => item._id !== id));
     } catch (err) {
       console.error("Lỗi khi xóa bookmark:", err);
+      alert("Không thể xóa lúc này, vui lòng thử lại sau.");
     }
   };
 
@@ -57,7 +63,7 @@ const FavoritesListView: React.FC = () => {
                   Saved <span className="text-red-500">Favorites</span>
                 </h1>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                  Kho lưu trữ các bản phân tích quan trọng
+                  Kho lưu trữ các bản phân tích quan trọng của {userName}
                 </p>
               </div>
 
@@ -123,6 +129,10 @@ const FavoritesListView: React.FC = () => {
                             </button>
 
                             <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/crawler-content/${item._id}`);
+                              }}
                               className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 transition-all shadow-md"
                             >
                               Chi tiết
@@ -135,7 +145,7 @@ const FavoritesListView: React.FC = () => {
                     <tr>
                       <td colSpan={3} className="px-8 py-32 text-center">
                         <p className="text-slate-400 text-sm font-bold uppercase italic tracking-widest">
-                          Hào chưa có bản ghi nào ở đây hết
+                          {userName} chưa có bản ghi nào ở đây hết
                         </p>
                         <button 
                           onClick={() => navigate('/history')}

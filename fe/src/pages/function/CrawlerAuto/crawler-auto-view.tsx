@@ -16,10 +16,16 @@ const SmartAutoView: React.FC = () => {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [savedSources, setSavedSources] = useState<any[]>([]);
 
+  // ==========================================
+  // 1. TẢI DANH SÁCH NGUỒN (Đã gắn bảo mật Token)
+  // ==========================================
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const res = await axios.get('/api/v1/sources/');
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/v1/sources/', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         const filtered = res.data.filter((s: any) => s.crawl_method === 'SMART_AUTO');
         setSavedSources(filtered);
       } catch (error) {
@@ -41,6 +47,9 @@ const SmartAutoView: React.FC = () => {
     }
   };
 
+  // ==========================================
+  // 2. THỰC THI AI (Bắt lỗi thông minh hơn)
+  // ==========================================
   const handleSmartExecute = async () => {
     if (!url) return alert("Vui lòng nhập URL!");
     setLoading(true);
@@ -53,29 +62,41 @@ const SmartAutoView: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      // Bắt chính xác trạng thái từ Backend trả về
       if (res.data && res.data.status === "success") {
         setResults(res.data.data);
       } else {
-        alert("Backend trả về lỗi: " + (res.data.error || "Không xác định"));
+        // Hiện đúng thông báo lỗi tiếng Việt (VD: Hết Quota)
+        alert("Lỗi: " + (res.data.message || res.data.error || "Hệ thống không phản hồi"));
       }
     } catch (err: any) {
       console.error("Lỗi Smart Auto:", err);
-      alert("Hệ thống AI không thể phân tích tự động trang này! " + (err.response?.data?.detail || ""));
+      alert("Hệ thống AI không thể phân tích trang này! " + (err.response?.data?.detail || ""));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveConfig = () => {
+  // ==========================================
+  // 3. LƯU CẤU HÌNH (Thêm async/await và Alert)
+  // ==========================================
+  const handleSaveConfig = async () => {
     let baseUrl = "https://unknown.com";
     try { baseUrl = new URL(url).origin; } catch (e) {}
 
-    saveSourceConfigToServer({
-      base_url: baseUrl,
-      search_url_template: url,
-      crawl_method: "SMART_AUTO", 
-      selectors: {} 
-    });
+    try {
+      await saveSourceConfigToServer({
+        name: `Smart Auto AI (${new URL(url).hostname})`, // Tự đặt tên cho dễ nhớ
+        base_url: baseUrl,
+        search_url_template: url,
+        crawl_method: "SMART_AUTO", 
+        selectors: {} 
+      });
+      alert("Đã lưu cấu hình AI thành công vào kho Nguồn!");
+    } catch (error) {
+      console.error("Lỗi lưu cấu hình:", error);
+      alert("Lỗi khi lưu cấu hình! Phiên đăng nhập có thể đã hết hạn.");
+    }
   };
 
   const getSentimentColor = (sentiment: string) => {
@@ -112,6 +133,7 @@ const SmartAutoView: React.FC = () => {
             <button 
               onClick={() => { setResults([]); setExpandedIndex(null); }} 
               className="p-3 bg-white border border-slate-200 rounded-xl text-slate-300 hover:text-rose-500 transition-all shadow-sm"
+              title="Xóa kết quả"
             >
               <Trash2 size={20} />
             </button>

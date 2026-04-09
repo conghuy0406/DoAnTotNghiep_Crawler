@@ -3,28 +3,32 @@ import axios from 'axios';
 import Sidebar from '../../../components/Sidebar';
 import { 
   Globe, Crosshair, Loader2, Play, 
-  Trash2, FileCode, ChevronRight, Search, FileJson, Save
+  Copy, Trash2, FileText, ExternalLink, Save, Settings2, Lightbulb, Code2, Info, FileCode, Tag, Image as ImageIcon,Sparkles
 } from 'lucide-react';
-// ✅ IMPORT HÀM LƯU TỪ TRẠM THU GOM API
 import { saveSourceConfigToServer } from '../../../api/sourceApi'; 
 
-const CrawlerHTMLView: React.FC = () => {
-  // ✅ 1. TRẢ LẠI STATE ĐÚNG CHUẨN ĐỂ NHẬP LIỆU
-  const [url, setUrl] = useState('https://dantri.com.vn/suc-manh-so.htm');
-  const [postItemSel, setPostItemSel] = useState('article.article-item'); 
-  const [titleSel, setTitleSel] = useState('h3.article-title a');    
+const CrawlerHtmlView: React.FC = () => {
+  const [url, setUrl] = useState('');
+  
+  // 🌟 ĐÃ THÊM ĐẦY ĐỦ CÁC STATE CHO DỮ LIỆU MỞ RỘNG
+  const [postItemSel, setPostItemSel] = useState(''); 
+  const [titleSel, setTitleSel] = useState('');    
+  const [thumbSel, setThumbSel] = useState('');
+  const [priceSel, setPriceSel] = useState('');
+  const [discountSel, setDiscountSel] = useState('');
+
+  const [isExpertMode, setIsExpertMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
-
-  // ✅ 2. STATE CHỨA DANH SÁCH NGUỒN HTML ĐÃ LƯU
   const [savedSources, setSavedSources] = useState<any[]>([]);
 
-  // ✅ 3. TẢI CẤU HÌNH HTML KHI MỞ TRANG
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/api/v1/sources/');
-        // CHỈ LẤY NGUỒN CÓ PHƯƠNG PHÁP LÀ HTML
+        const token = localStorage.getItem('token');
+        const res = await axios.get('/api/v1/sources/', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         const filtered = res.data.filter((s: any) => s.crawl_method === 'HTML');
         setSavedSources(filtered);
       } catch (error) {
@@ -34,11 +38,10 @@ const CrawlerHTMLView: React.FC = () => {
     fetchSources();
   }, []);
 
-  // ✅ 4. HÀM XỬ LÝ KHI CHỌN NGUỒN
   const handleSelectSource = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedId = e.target.value;
     if (!selectedId) {
-      setUrl(''); setPostItemSel(''); setTitleSel('');
+      setUrl(''); setPostItemSel(''); setTitleSel(''); setThumbSel(''); setPriceSel(''); setDiscountSel('');
       return;
     }
     const source = savedSources.find(s => s._id === selectedId);
@@ -46,201 +49,311 @@ const CrawlerHTMLView: React.FC = () => {
       setUrl(source.search_url_template || '');
       setPostItemSel(source.selectors?.post_item || '');
       setTitleSel(source.selectors?.title_link || '');
+      // Load thêm các selector nâng cao nếu có
+      setThumbSel(source.selectors?.thumb || '');
+      setPriceSel(source.selectors?.price || '');
+      setDiscountSel(source.selectors?.discount || '');
     }
   };
 
-  // ==========================================
-  // HÀM CHẠY KIỂM THỬ HTML (Gọi đúng chuẩn Swagger)
-  // ==========================================
   const handleExecute = async () => {
-    if (!url) return alert("Vui lòng nhập URL trang web!");
+    if (!url) return alert("Vui lòng nhập URL!");
     setLoading(true);
     setResults([]);
-
     try {
       const token = localStorage.getItem('token');
-      // Đã loại bỏ đoạn hardcode VnExpress, dùng chính xác data người dùng nhập
-      const res = await axios.post('http://localhost:8000/api/v1/crawl-test/html', {
+      // 🌟 GỬI TOÀN BỘ DỮ LIỆU MỞ RỘNG XUỐNG BACKEND
+      const res = await axios.post('/api/v1/crawl-test/html', {
         url: url,
-        post_item_sel: postItemSel, 
-        title_sel: titleSel        
+        post_item_sel: postItemSel,
+        title_sel: titleSel,
+        thumb_sel: thumbSel,
+        price_sel: priceSel,
+        discount_sel: discountSel
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      if (res.data?.status === "success") {
-        setResults(res.data.data || []);
+
+      // Bắt lỗi yêu cầu bật chế độ kỹ sư từ Backend
+      if (res.data && res.data.status === "require_engineer") {
+        setIsExpertMode(true);
+        alert(`🚨 Yêu cầu bật Chế độ Kỹ sư!\n\n${res.data.message}`);
+        return;
+      }
+
+      if (res.data && res.data.status === "success") {
+        setResults(res.data.data || []); 
       } else {
-        alert("Lỗi Backend: " + (res.data.message || "Không xác định"));
+        alert("Lỗi: " + (res.data.message || res.data.error || "Không xác định"));
       }
     } catch (err: any) {
-      alert("Lỗi kết nối Backend! Chi tiết: " + (err.response?.data?.detail || err.message));
+      alert("Lỗi kết nối Backend! " + (err.response?.data?.detail || ""));
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // HÀM LƯU CẤU HÌNH HTML
-  // ==========================================
-  const handleSaveConfig = () => {
+  const handleSaveConfig = async () => {
     let baseUrl = "https://unknown.com";
     try { baseUrl = new URL(url).origin; } catch (e) {}
 
-    saveSourceConfigToServer({
-      base_url: baseUrl,
-      search_url_template: url,
-      crawl_method: "HTML", // LƯU VỚI LOẠI HTML
-      selectors: {
-        post_item: postItemSel || "",
-        title_link: titleSel || ""
-      }
-    });
+    try {
+      await saveSourceConfigToServer({
+        name: `HTML Source (${new URL(url).hostname})`,
+        base_url: baseUrl,
+        search_url_template: url,
+        crawl_method: "HTML",
+        // 🌟 LƯU ĐẦY ĐỦ CẤU HÌNH
+        selectors: { 
+          post_item: postItemSel, 
+          title_link: titleSel,
+          thumb: thumbSel,
+          price: priceSel,
+          discount: discountSel
+        }
+      });
+      alert("Đã lưu cấu hình HTML thành công!");
+    } catch (error) {
+      alert("Lỗi khi lưu cấu hình!");
+    }
   };
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC]">
-      <Sidebar activePage="Crawler HTML" />
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-600 font-sans">
+      <Sidebar activePage="Cào Web Tĩnh (HTML)" />
       
       <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-6 lg:p-10 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-6 md:p-10 no-scrollbar">
           
           {/* HEADER */}
-          <div className="max-w-7xl mx-auto mb-10 flex items-end justify-between border-b border-emerald-100 pb-6">
+          <div className="max-w-7xl mx-auto mb-10 flex items-end justify-between border-b border-slate-200 pb-6">
             <div className="flex items-center gap-5">
-              <div className="w-16 h-16 bg-white shadow-sm border border-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
-                <FileJson size={32} strokeWidth={2.5} />
+              <div className="w-16 h-16 bg-emerald-50 shadow-sm border border-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
+                <FileCode size={32} strokeWidth={2.5} />
               </div>
               <div>
                 <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-2 uppercase italic">HTML Crawler</h1>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Trích xuất tĩnh siêu tốc độ
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Trích xuất Web tĩnh siêu tốc
                 </p>
               </div>
             </div>
-            <button 
-              onClick={() => setResults([])} 
-              className="p-3 bg-white border border-slate-200 rounded-xl text-slate-300 hover:text-emerald-500 transition-all shadow-sm"
-            >
-              <Trash2 size={20} />
-            </button>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => { setUrl('https://vnexpress.net/so-hoa/ai'); setPostItemSel('.item-news'); setTitleSel('.title-news a'); setIsExpertMode(true); }} 
+                className="px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-600 hover:bg-emerald-100 transition-all shadow-sm font-black text-[11px] uppercase tracking-widest flex items-center gap-2"
+              >
+                 Mẫu VnExpress
+              </button>
+              <button 
+                onClick={() => setResults([])} 
+                className="p-3 bg-white border border-slate-200 rounded-xl text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
           </div>
 
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-10">
             
-            {/* CỘT TRÁI: FORM CẤU HÌNH */}
-            <div className="lg:col-span-4 space-y-6 sticky top-0">
-              <div className="bg-white p-8 rounded-[40px] shadow-sm border border-emerald-50 space-y-6">
+            {/* CỘT TRÁI: CẤU HÌNH */}
+            <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-0">
+              
+              {/* THẺ HƯỚNG DẪN THÔNG MINH */}
+              <div className="bg-emerald-600 rounded-[32px] p-6 shadow-lg shadow-emerald-200/50 text-white relative overflow-hidden">
+                <div className="absolute -right-4 -top-4 opacity-10">
+                  <Code2 size={120} />
+                </div>
+                <div className="relative z-10">
+                  <h3 className="font-black text-[15px] flex items-center gap-2 mb-3">
+                    <Lightbulb size={18} className="text-yellow-300" /> Auto-Detect Thông Minh
+                  </h3>
+                  <p className="text-[12px] font-medium text-emerald-50 leading-relaxed mb-4">
+                    Nếu bạn không nhập CSS Selector, hệ thống sẽ <b>tự động quét</b> và trích xuất tiêu đề/link. Tuy nhiên, để lấy được chi tiết (Ảnh, Giá tiền), bạn cần bật <b>Chế độ Kỹ sư</b> và khai báo tọa độ.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100 space-y-6">
                 
-                {/* 📂 TẢI CẤU HÌNH ĐÃ LƯU */}
-                <div className="space-y-1 mb-6 border-b border-emerald-50 pb-6">
+                {/* Chọn Nguồn */}
+                <div className="space-y-1 mb-6 border-b border-slate-100 pb-6">
                   <label className="text-[11px] font-black text-emerald-600 uppercase tracking-widest ml-1">
-                    📂 Tải cấu hình HTML đã lưu
+                    📂 Template HTML có sẵn
                   </label>
                   <select 
                     onChange={handleSelectSource}
-                    className="w-full bg-emerald-50/50 border border-emerald-100 rounded-2xl py-3 px-4 text-sm font-bold text-emerald-700 outline-none focus:bg-emerald-50 focus:border-emerald-300 transition-all cursor-pointer"
+                    className="w-full bg-emerald-50/50 border border-emerald-100 rounded-2xl py-4 px-4 text-sm font-bold text-emerald-700 outline-none focus:bg-emerald-50 focus:border-emerald-300 transition-all cursor-pointer shadow-inner"
                   >
-                    <option value="">--- Chọn nguồn để tải lại Form ---</option>
+                    <option value="">--- Chọn nguồn để bóc tách ---</option>
                     {savedSources.map(src => (
-                      <option key={src._id} value={src._id}>
-                        {src.name}
-                      </option>
+                      <option key={src._id} value={src._id}>{src.name}</option>
                     ))}
                   </select>
                 </div>
 
-                {/* Ô NHẬP LIỆU CHUẨN */}
+                {/* URL */}
                 <div className="space-y-1">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">URL Mục Tiêu</label>
                   <div className="relative group">
                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
                     <input 
                       value={url} onChange={(e) => setUrl(e.target.value)}
+                      placeholder="VD: https://vnexpress.net..."
                       className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-medium outline-none focus:bg-white focus:border-emerald-400 transition-all shadow-inner text-slate-700"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 text-emerald-600">Post Item Selector</label>
-                  <div className="relative group">
-                    <Crosshair className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-emerald-500 transition-colors" />
-                    <input 
-                      value={postItemSel} onChange={(e) => setPostItemSel(e.target.value)}
-                      placeholder="article.article-item"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-emerald-600 outline-none focus:bg-white focus:border-emerald-400 transition-all shadow-inner"
-                    />
+                {/* 🌟 CÔNG TẮC BẬT TẮT CHẾ ĐỘ KỸ SƯ */}
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 mt-6 cursor-pointer hover:bg-emerald-50 transition-colors"
+                     onClick={() => setIsExpertMode(!isExpertMode)}>
+                  <div className="flex items-center gap-3">
+                    <Settings2 size={18} className={isExpertMode ? "text-emerald-500" : "text-slate-400"} />
+                    <div>
+                      <h3 className={`text-[11px] font-black uppercase tracking-widest ${isExpertMode ? "text-emerald-700" : "text-slate-700"}`}>Chế độ Kỹ sư</h3>
+                      <p className="text-[9px] text-slate-400 font-bold mt-0.5">Tùy chỉnh lấy Ảnh, Giá tiền...</p>
+                    </div>
+                  </div>
+                  <div className={`w-12 h-6 rounded-full transition-colors relative flex items-center ${isExpertMode ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                    <div className={`w-4 h-4 bg-white rounded-full shadow-sm absolute transition-transform ${isExpertMode ? 'translate-x-7' : 'translate-x-1'}`}></div>
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 text-orange-500">Title Selector</label>
-                  <div className="relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-orange-400 transition-colors" />
-                    <input 
-                      value={titleSel} onChange={(e) => setTitleSel(e.target.value)}
-                      placeholder="h3.article-title a"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-orange-500 outline-none focus:bg-white focus:border-orange-300 transition-all shadow-inner"
-                    />
+                {/* 🌟 EXPERT MODE - TÙY CHỈNH NÂNG CAO */}
+                <div className={`space-y-4 overflow-hidden transition-all duration-500 ease-in-out ${isExpertMode ? 'max-h-[800px] opacity-100 pt-4 border-t border-slate-100' : 'max-h-0 opacity-0'}`}>
+                  
+                  {/* Selector Cơ bản */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Khối Item *</label>
+                      <input 
+                        value={postItemSel} onChange={(e) => setPostItemSel(e.target.value)}
+                        placeholder="VD: .item-news"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-[12px] font-mono text-emerald-600 outline-none focus:border-emerald-400 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Title/Link *</label>
+                      <input 
+                        value={titleSel} onChange={(e) => setTitleSel(e.target.value)}
+                        placeholder="VD: .title a"
+                        className="w-full bg-white border border-slate-200 rounded-xl py-3 px-3 text-[12px] font-mono text-emerald-600 outline-none focus:border-emerald-400 transition-all"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                {/* HAI NÚT HÀNH ĐỘNG */}
-                <div className="flex gap-3">
-                  <button 
-                    onClick={handleExecute} disabled={loading}
-                    className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-200 disabled:opacity-50 active:scale-95"
-                  >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
-                    <span className="tracking-widest uppercase text-[12px]">{loading ? "ĐANG QUÉT..." : "THỰC THI"}</span>
-                  </button>
+                  {/* Selector Nâng cao */}
+                  <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Sparkles size={12}/> Thu thập mở rộng (Không bắt buộc)</label>
+                    <div className="space-y-1">
+                      <input 
+                        value={thumbSel} onChange={(e) => setThumbSel(e.target.value)}
+                        placeholder="Tọa độ Ảnh (VD: img.thumbnail)"
+                        className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-[12px] font-mono text-slate-600 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <input 
+                        value={priceSel} onChange={(e) => setPriceSel(e.target.value)}
+                        placeholder="Tọa độ Giá (VD: span.price)"
+                        className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-[12px] font-mono text-rose-500 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <input 
+                        value={discountSel} onChange={(e) => setDiscountSel(e.target.value)}
+                        placeholder="Tọa độ Giảm giá (VD: div.badge-sale)"
+                        className="w-full bg-white border border-slate-200 rounded-lg py-2 px-3 text-[12px] font-mono text-rose-500 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                  </div>
 
                   <button 
                     onClick={handleSaveConfig} disabled={loading}
-                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-black py-4 rounded-[22px] transition-all flex items-center justify-center gap-2 shadow-xl shadow-emerald-100 disabled:opacity-50 active:scale-95"
+                    className="w-full py-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-black rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 text-[11px] uppercase tracking-widest"
                   >
-                    <Save className="w-5 h-5" />
-                    <span className="tracking-widest uppercase text-[12px]">LƯU CẤU HÌNH</span>
+                    <Save size={16} /> Lưu thành Template
                   </button>
+
                 </div>
+
+                {/* NÚT THỰC THI */}
+                <button 
+                  onClick={handleExecute} disabled={loading}
+                  className="w-full bg-slate-800 hover:bg-emerald-600 text-white font-black py-5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-xl shadow-slate-200 disabled:opacity-50 active:scale-95 mt-4"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5 fill-current" />}
+                  <span className="tracking-widest uppercase text-[12px]">{loading ? "ĐANG XỬ LÝ..." : "THỰC THI TRÍCH XUẤT"}</span>
+                </button>
 
               </div>
             </div>
 
-            {/* CỘT PHẢI: KẾT QUẢ TĨNH */}
-            <div className="lg:col-span-8 flex flex-col min-h-[600px]">
-              <div className="flex justify-between items-center mb-5 px-4">
-                <h2 className="text-sm font-black uppercase tracking-widest text-slate-800">Dữ liệu bóc tách HTML ({results.length})</h2>
+            {/* CỘT PHẢI: KẾT QUẢ ĐÃ LỘT XÁC */}
+            <div className="lg:col-span-7 flex flex-col min-h-[600px]">
+              <div className="flex justify-between items-center mb-5 px-2">
+                <h2 className="text-[13px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+                  Dữ liệu bóc tách <span className="bg-emerald-100 text-emerald-600 px-3 py-0.5 rounded-full text-[10px]">{results.length}</span>
+                </h2>
+                {results.length > 0 && (
+                  <button className="text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg transition-colors uppercase tracking-widest flex items-center gap-2">
+                    <Copy size={14} /> Sao chép JSON
+                  </button>
+                )}
               </div>
 
-              <div className="bg-white border border-slate-100 rounded-[40px] shadow-sm flex-1 overflow-hidden flex flex-col">
+              <div className="bg-white border border-slate-100 rounded-[32px] shadow-sm flex-1 overflow-hidden flex flex-col">
                 {results.length === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-slate-300 py-40">
-                    <FileCode size={40} className="opacity-20 mb-4" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.3em]">Chưa có dữ liệu...</span>
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-300 py-40 bg-slate-50/50">
+                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 border border-slate-100 shadow-sm">
+                      <FileText size={32} className="text-emerald-500/30" />
+                    </div>
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Chưa có dữ liệu</span>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-50 overflow-y-auto no-scrollbar">
+                  <div className="overflow-y-auto no-scrollbar p-6 space-y-4 bg-slate-50/30">
+                    {/* 🌟 VÒNG LẶP KẾT QUẢ DẠNG CARD */}
                     {results.map((item, i) => (
-                      <div key={i} className="p-6 hover:bg-emerald-50/50 transition-all group flex gap-6 items-center">
-                         <div className="flex-none w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-xs font-black text-slate-300 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-inner">
-                           {(i+1).toString().padStart(2, '0')}
-                         </div>
-                         <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-slate-700 text-[15px] leading-tight group-hover:text-emerald-600 transition-colors uppercase tracking-tight truncate">
-                              {item.title ? item.title : <span className="text-red-300 italic">Lỗi: Selector không lấy được text</span>}
-                            </h3>
-                            <p className="text-[10px] text-slate-400 truncate mt-1 group-hover:text-emerald-500 transition-colors italic">
-                              {item.url || item.link}
-                            </p>
-                         </div>
-                         <a 
-                            href={item.url || item.link} target="_blank" rel="noreferrer"
-                            className="text-slate-200 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all p-2"
-                         >
-                            <ChevronRight size={18} />
-                         </a>
+                      <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex gap-4 items-start group animate-in fade-in">
+                        
+                        {/* Khu vực Ảnh (Nếu có thumb_sel) */}
+                        {item.thumbnail ? (
+                          <div className="w-24 h-24 shrink-0 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden">
+                            <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 shrink-0 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-300 font-black text-sm">
+                            {(i+1).toString().padStart(2, '0')}
+                          </div>
+                        )}
+
+                        {/* Khu vực Text */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-slate-700 text-[14px] leading-snug group-hover:text-emerald-600 transition-colors line-clamp-2 mb-2">
+                            {item.title}
+                          </h3>
+                          
+                          {/* Khu vực Giá / Discount (Nếu có) */}
+                          {(item.price || item.discount) && (
+                            <div className="flex items-center gap-3 mb-2">
+                              {item.price && <span className="text-rose-600 font-black text-sm flex items-center gap-1"><Tag size={12}/> {item.price}</span>}
+                              {item.discount && <span className="bg-rose-100 text-rose-600 text-[10px] font-black px-2 py-0.5 rounded-md">{item.discount}</span>}
+                            </div>
+                          )}
+
+                          <a href={item.url} target="_blank" rel="noreferrer" className="text-[11px] font-medium text-slate-400 italic hover:text-emerald-500 truncate block">
+                            {item.url}
+                          </a>
+                        </div>
+                        
+                        {/* Nút mở Link */}
+                        <a 
+                          href={item.url} target="_blank" rel="noreferrer"
+                          className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-slate-100 shrink-0"
+                        >
+                          <ExternalLink size={16} />
+                        </a>
                       </div>
                     ))}
                   </div>
@@ -255,4 +368,4 @@ const CrawlerHTMLView: React.FC = () => {
   );
 };
 
-export default CrawlerHTMLView;
+export default CrawlerHtmlView;
