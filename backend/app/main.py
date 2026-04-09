@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 
 # Import các Router và Dependency bảo mật từ dự án của bạn
-from app.api import crawl, auth, source, history, bookmarks, export 
+from app.api import crawl, auth, source, history, bookmarks, export, users 
 from app.celery_worker import run_smart_crawl_task, celery_app
 from app.api.auth import get_current_user  # 🔒 Lấy hàm kiểm tra Token từ auth.py
 
@@ -49,6 +49,7 @@ app.add_middleware(
 
 # --- 3. ĐĂNG KÝ ROUTER ---
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"]) 
+app.include_router(users.router, prefix="/api/v1/users", tags=["Users"]) 
 app.include_router(crawl.router, prefix="/api/v1", tags=["Crawl"])
 app.include_router(source.router, prefix="/api/v1/sources", tags=["Source Config"])
 app.include_router(history.router)

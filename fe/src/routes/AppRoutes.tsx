@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Login from '../pages/login/Login';
 import Register from '../pages/login/Register'; 
 import Dashboard from '../pages/admin/Dashboard';
+import UserManager from '../pages/admin/UserManager';
 import Home from '../pages/user/Home';
 
 // ✅ CẬP NHẬT ĐÚNG THEO CẤU TRÚC THƯ MỤC MỚI
@@ -141,6 +142,12 @@ const AppRoutes = () => {
       {/* 11. HỆ THỐNG TỰ ĐỘNG LÊN LỊCH */}
       <Route path="/auto-schedule" element={isAuthenticated ? <AutoScheduleView /> : <Navigate to="/login" replace />} />
       <Route path="/auto-history" element={isAuthenticated ? <AutoHistoryView /> : <Navigate to="/login" replace />} />
+      
+      {/* 12. QUẢN LÝ NGƯỜI DÙNG (ADMIN) */}
+      <Route 
+        path="/users" 
+        element={isAuthenticated && isAdmin ? <UserManager /> : <Navigate to="/home" replace />} 
+      />
       
       {/* 12. MẶC ĐỊNH */}
       <Route path="*" element={<Navigate to="/" replace />} />
