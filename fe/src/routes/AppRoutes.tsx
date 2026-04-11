@@ -19,6 +19,10 @@ import AutoScheduleView from '../pages/function/AutoSchedule/auto-schedule-view'
 import AutoHistoryView from '../pages/function/AutoSchedule/history-view';
 import SourceManagerView from '../pages/function/SourceManager/source-manager-view'; 
 
+import GuideView from '../pages/function/help/GuideView';
+import ManageUsersView from '../pages/admin/ManageUsersView';
+import GlobalHistoryView from '../pages/admin/global-history-view.tsx';
+import GlobalSourceView from '../pages/admin/global-source-view';
 // ==========================================
 // 🌟 THÊM IMPORT CHO CÁC TRANG CÒN THIẾU 
 // ==========================================
@@ -26,6 +30,7 @@ import CrawlerDataView from '../pages/function/CrawlerData/crawler-data-view';
 import TestCrawlerView from '../pages/function/TestCrawler/test-crawler-view';
 
 const AppRoutes = () => {
+  // Lấy trạng thái đăng nhập và quyền từ LocalStorage
   const token = localStorage.getItem('token');
   const userRole = localStorage.getItem('role'); 
 
@@ -34,7 +39,7 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* 1. ĐIỀU HƯỚNG GỐC */}
+      {/* 1. ĐIỀU HƯỚNG GỐC (MẶC ĐỊNH SẼ ĐẨY VỀ HOME/DASHBOARD TÙY QUYỀN) */}
       <Route path="/" element={
         isAuthenticated 
           ? (isAdmin ? <Navigate to="/dashboard" replace /> : <Navigate to="/home" replace />)
@@ -98,7 +103,7 @@ const AppRoutes = () => {
         element={isAuthenticated ? <BrowserCrawlerView /> : <Navigate to="/login" replace />} 
       />
 
-      {/* 🌟 5d. QUẢN LÝ NGUỒN CÀO (THÊM MỚI Ở ĐÂY) */}
+      {/* 5d. QUẢN LÝ NGUỒN CÀO */}
       <Route 
         path="/sources" 
         element={isAuthenticated ? <SourceManagerView /> : <Navigate to="/login" replace />} 
@@ -132,17 +137,30 @@ const AppRoutes = () => {
         element={isAuthenticated ? <div className="text-white ml-64 p-10 font-bold uppercase italic">Setting Page (Coming Soon)</div> : <Navigate to="/login" replace />} 
       />
 
-      {/* 10. ADMIN DASHBOARD */}
+      {/* 10. ADMIN DASHBOARD & QUẢN LÝ TÀI KHOẢN (BẢO MẬT 2 LỚP) */}
       <Route 
         path="/dashboard" 
-        element={isAuthenticated && isAdmin ? <Dashboard /> : <Navigate to="/home" replace />} 
+        element={isAuthenticated && isAdmin ? <Dashboard /> : <Navigate to="/" replace />} 
       />
+      <Route 
+        path="/manage-users" 
+        element={isAuthenticated && isAdmin ? <ManageUsersView /> : <Navigate to="/" replace />} 
+      />
+      <Route 
+  path="/global-history" 
+  element={isAuthenticated && isAdmin ? <GlobalHistoryView /> : <Navigate to="/" replace />} 
+/>
+<Route 
+  path="/global-sources" 
+  element={isAuthenticated && isAdmin ? <GlobalSourceView /> : <Navigate to="/" replace />} 
+/>
       
-      {/* 11. HỆ THỐNG TỰ ĐỘNG LÊN LỊCH */}
+      {/* 11. HỆ THỐNG TỰ ĐỘNG LÊN LỊCH & HƯỚNG DẪN */}
       <Route path="/auto-schedule" element={isAuthenticated ? <AutoScheduleView /> : <Navigate to="/login" replace />} />
       <Route path="/auto-history" element={isAuthenticated ? <AutoHistoryView /> : <Navigate to="/login" replace />} />
-      
-      {/* 12. MẶC ĐỊNH */}
+      <Route path="/guide" element={isAuthenticated ? <GuideView /> : <Navigate to="/login" replace />} />
+
+      {/* 12. MẶC ĐỊNH BẮT CÁC ĐƯỜNG DẪN LỖI (404) ĐẨY VỀ TRANG CHỦ */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

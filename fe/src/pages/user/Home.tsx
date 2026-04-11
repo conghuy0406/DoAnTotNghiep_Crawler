@@ -5,12 +5,16 @@ import axiosClient from "../../api/axiosClient";
 import { 
   Sparkles, Search, FileCode, Layout, Zap, Fingerprint, 
   ArrowRight, Activity, Database, CheckCircle2, XCircle, Clock, 
-  Bell, User, ChevronDown, Server, History 
+  Bell, User, ChevronDown, Server, History, ShieldAlert // 🌟 Thêm ShieldAlert
 } from 'lucide-react';
 
 const Home = () => {
   const navigate = useNavigate();
-  const displayName = localStorage.getItem('username') || 'Người dùng';
+  
+  // 🌟 LẤY ROLE VÀ TÊN TỪ LOCAL STORAGE
+  const userRole = localStorage.getItem('role') || 'user';
+  const displayName = localStorage.getItem('full_name') || localStorage.getItem('username') || 'Người dùng';
+  const roleDisplay = userRole === 'admin' ? 'Quản trị viên' : 'Thành viên';
   
   const [quickUrl, setQuickUrl] = useState('');
   const [recentHistory, setRecentHistory] = useState<any[]>([]);
@@ -69,7 +73,6 @@ const Home = () => {
     navigate('/smart-auto', { state: { targetUrl: quickUrl } });
   };
 
-  // 🌟 BỘ CÔNG CỤ: ĐỒNG BỘ TÔNG MÀU XANH LAM / XANH NGỌC / VÀNG 🌟
   const tools = [
     { name: 'Cào Web Tĩnh', desc: 'Trích xuất HTML siêu tốc độ', path: '/crawler-html', icon: <FileCode size={24} />, color: 'text-[#1b4b82]', bg: 'bg-[#1b4b82]/10', hoverBorder: 'hover:border-[#1b4b82]/30' },
     { name: 'Cào TMĐT', desc: 'Giả lập Browser, tự cuộn trang', path: '/crawler-browser', icon: <Layout size={24} />, color: 'text-[#265e9f]', bg: 'bg-[#265e9f]/10', hoverBorder: 'hover:border-[#265e9f]/30' },
@@ -79,14 +82,24 @@ const Home = () => {
 
   return (
     <div className="flex h-screen bg-[#f0f2f5] font-sans text-slate-700">
-      <Sidebar activePage="Trang Chủ" />
+      <Sidebar activePage="Trang chủ" />
 
       <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden">
         
         {/* TOP HEADER */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 z-10 shrink-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <span className="text-slate-500 font-medium text-[13px]">{new Date().toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            
+            {/* 🌟 NÚT CHUYỂN TRANG DÀNH RIÊNG CHO ADMIN */}
+            {userRole === 'admin' && (
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="hidden md:flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-100 hover:bg-rose-100 transition-colors text-[11px] font-black uppercase tracking-widest"
+              >
+                <ShieldAlert size={14} /> Vào Admin Dashboard
+              </button>
+            )}
           </div>
           
           <div className="flex items-center gap-5">
@@ -96,12 +109,16 @@ const Home = () => {
             </button>
             <div className="w-px h-5 bg-slate-200"></div>
             <div className="flex items-center gap-3 cursor-pointer group">
-              <div className="w-8 h-8 rounded-full bg-[#1b4b82]/10 text-[#1b4b82] flex items-center justify-center font-black shadow-inner group-hover:bg-[#1b4b82] group-hover:text-white transition-colors">
-                <User size={16} />
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black shadow-inner transition-colors
+                ${userRole === 'admin' ? 'bg-rose-100 text-rose-600 group-hover:bg-rose-600 group-hover:text-white' : 'bg-[#1b4b82]/10 text-[#1b4b82] group-hover:bg-[#1b4b82] group-hover:text-white'}
+              `}>
+                {userRole === 'admin' ? <ShieldAlert size={16} /> : <User size={16} />}
               </div>
               <div className="hidden md:block text-sm">
                 <p className="font-bold text-slate-700 leading-none text-[13px]">{displayName}</p>
-                <p className="text-[10px] text-slate-400 mt-1">Quản trị viên</p>
+                <p className={`text-[10px] mt-1 font-bold ${userRole === 'admin' ? 'text-rose-500' : 'text-slate-400'}`}>
+                  {roleDisplay}
+                </p>
               </div>
               <ChevronDown size={14} className="text-slate-400 group-hover:text-[#1b4b82]" />
             </div>
@@ -113,7 +130,6 @@ const Home = () => {
             
             {/* 1. HERO BANNER - ĐỒNG BỘ MÀU SIDEBAR (#153c6b tới #265e9f) */}
             <div className="bg-gradient-to-r from-[#153c6b] to-[#265e9f] rounded-3xl p-8 md:p-12 shadow-md relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-10">
-              {/* Decorative Elements */}
               <div className="absolute top-[-20%] left-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute bottom-[-20%] right-[-5%] w-80 h-80 bg-[#1cd4a5]/10 rounded-full blur-3xl pointer-events-none"></div>
               
@@ -122,7 +138,7 @@ const Home = () => {
                   <Sparkles size={12} className="text-[#fac031]" /> Trợ lý AI Thu Thập Dữ Liệu
                 </div>
                 <h1 className="text-3xl md:text-5xl font-black text-white mb-4 tracking-tight leading-tight">
-                  {greeting}, <br className="hidden md:block" /> {displayName}!
+                  {greeting}, <br className="hidden md:block" /> <span className={userRole === 'admin' ? 'text-rose-300' : 'text-white'}>{displayName}</span>!
                 </h1>
                 <p className="text-blue-100/80 text-sm md:text-[15px] font-medium leading-relaxed mb-8 pr-4">
                   Chỉ cần dán đường dẫn website vào đây, hệ thống sẽ tự động nhận diện cấu trúc và bóc tách dữ liệu một cách thông minh.
@@ -139,14 +155,12 @@ const Home = () => {
                     placeholder="Nhập URL (VD: shopee.vn, dantri.com...)"
                     className="flex-1 bg-transparent border-none text-slate-700 text-sm font-medium outline-none px-2 placeholder:text-slate-400"
                   />
-                  {/* Nút bấm Xanh Ngọc (Cyan) cực kỳ nổi bật */}
                   <button type="submit" className="bg-[#1cd4a5] hover:bg-[#16b58d] text-[#0b2849] font-black px-6 py-3.5 rounded-xl transition-all flex items-center gap-2 text-xs uppercase tracking-widest shrink-0 active:scale-95 shadow-sm">
                     Phân Tích
                   </button>
                 </form>
               </div>
 
-              {/* Hình ảnh/Minh họa bên phải */}
               <div className="relative z-10 hidden md:flex w-5/12 justify-center items-center">
                  <div className="w-full max-w-[240px] aspect-square bg-[#113259]/50 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl p-6 relative flex flex-col gap-4">
                     <div className="w-2/3 h-3 bg-white/10 rounded-full animate-pulse"></div>
@@ -159,7 +173,7 @@ const Home = () => {
               </div>
             </div>
 
-            {/* 2. CHỈ SỐ NHANH - CÙNG TÔNG MÀU SIDEBAR */}
+            {/* 2. CHỈ SỐ NHANH */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: 'Tổng phiên thu thập', value: stats.crawls, icon: <Activity size={20}/>, color: 'text-[#1b4b82]', bg: 'bg-[#1b4b82]/10' },
@@ -182,7 +196,6 @@ const Home = () => {
             {/* 3. KHU VỰC CÔNG CỤ & HỆ THỐNG */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               
-              {/* Lưới Công cụ */}
               <div className="lg:col-span-7 space-y-4">
                 <div className="flex justify-between items-center px-1">
                   <h3 className="text-[13px] font-bold uppercase tracking-widest text-slate-600 flex items-center gap-2">
@@ -211,7 +224,6 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* Trạng thái & Lịch sử */}
               <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
                 <div className="flex justify-between items-center mb-5">
                   <h3 className="text-[13px] font-bold uppercase tracking-widest text-slate-600 flex items-center gap-2">
@@ -219,7 +231,6 @@ const Home = () => {
                   </h3>
                 </div>
 
-                {/* Progress Bar Hệ Thống */}
                 <div className="space-y-4 mb-6">
                   <div>
                     <div className="flex justify-between text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wide">
@@ -241,7 +252,6 @@ const Home = () => {
                   </div>
                 </div>
 
-                {/* Lịch sử */}
                 <div className="flex-1 flex flex-col gap-3">
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 border-b border-slate-100 pb-2">Lịch sử gần nhất</h4>
                   {loading ? (
@@ -272,7 +282,6 @@ const Home = () => {
                 </div>
 
               </div>
-
             </div>
 
           </div>

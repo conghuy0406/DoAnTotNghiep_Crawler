@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axiosClient from "../../../api/axiosClient";
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../../components/Sidebar';
+import { History, Search, Loader2, CheckCircle2, XCircle, Clock, Globe, Code2, Zap, Fingerprint } from 'lucide-react';
 
 const HistoryCrawlerView: React.FC = () => {
   const navigate = useNavigate();
@@ -10,197 +11,108 @@ const HistoryCrawlerView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: 10 });
 
-  // Lấy danh sách lịch sử
   const fetchHistory = async (page: number = 1, keyword: string = "") => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // ✅ Đã xóa localhost, dùng đường dẫn tương đối
-      const response = await axios.get(`/api/v1/history/`, {
-        params: { page, limit: 10, keyword },
+      // 🌟 Mặc định gọi scope=me (chỉ lấy của mình)
+      const res = await axiosClient.get('/api/v1/history/', {
+        params: { page, limit: 10, keyword, scope: 'me' },
         headers: { Authorization: `Bearer ${token}` }
       });
-      
-      setHistoryData(response.data.data);
-      setPagination({
-        total: response.data.total,
-        page: response.data.page,
-        limit: response.data.limit
-      });
-    } catch (error: any) {
+      setHistoryData(res.data?.items || res.data?.data || []);
+      setPagination({ total: res.data?.total || 0, page: res.data?.page || 1, limit: res.data?.limit || 10 });
+    } catch (error) {
       console.error("Lỗi lấy lịch sử:", error);
-      if (error.response?.status === 401) {
-        alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại!");
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
+  useEffect(() => { fetchHistory(); }, []);
 
-  // Logic Toggle Bookmark: Thêm hoặc Xóa yêu thích
-  const handleToggleBookmark = async (id: string, currentlyBookmarked: boolean) => {
-    try {
-      const token = localStorage.getItem('token');
-      // ✅ Đã xóa localhost
-      const url = `/api/v1/bookmarks/${id}`;
-      const headers = { Authorization: `Bearer ${token}` };
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); fetchHistory(1, searchTerm); };
 
-      if (currentlyBookmarked) {
-        // Gọi DELETE để bỏ ghim
-        await axios.delete(url, { headers });
-      } else {
-        // Gọi POST để thêm vào yêu thích
-        await axios.post(url, {}, { headers });
-      }
-      
-      // Cập nhật state tại chỗ để icon thay đổi màu ngay lập tức
-      setHistoryData(prev => prev.map(item => 
-        item._id === id ? { ...item, is_bookmarked: !currentlyBookmarked } : item
-      ));
-      
-    } catch (error) {
-      console.error("Lỗi xử lý Bookmark:", error);
-      alert("Không thể thực hiện thao tác này. Vui lòng thử lại!");
+  const getMethodIcon = (method: string) => {
+    switch(method) {
+      case 'HTML': return <Code2 size={16} className="text-emerald-500" />;
+      case 'BROWSER': case 'SELENIUM': return <Globe size={16} className="text-blue-500" />;
+      case 'API': return <Zap size={16} className="text-indigo-500" />;
+      case 'REGEX': return <Fingerprint size={16} className="text-amber-500" />;
+      default: return <Globe size={16} className="text-slate-500" />;
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchHistory(1, searchTerm);
-  };
-
   return (
-    <div className="flex h-screen bg-[#F8F9FF] overflow-hidden font-sans">
-      <Sidebar activePage="Lịch Sử Crawler" />
-
-      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden relative">
-        <main className="flex-1 overflow-y-auto p-6 md:p-10 pt-8 custom-scrollbar">
-          <div className="max-w-6xl mx-auto space-y-8 pb-20">
-            
-            {/* Header & Search Bar */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <h1 className="text-4xl font-black italic uppercase tracking-tighter text-slate-800">
-                  Crawler <span className="text-indigo-600">History</span>
-                </h1>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">
-                  Quản lý nhật ký phân tích dữ liệu
-                </p>
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-600 font-sans">
+      <Sidebar activePage="Lịch sử của tôi" />
+      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-10 no-scrollbar">
+          
+          <div className="max-w-6xl mx-auto mb-8 flex items-end justify-between border-b border-slate-200 pb-6">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 shadow-md rounded-2xl flex items-center justify-center text-white bg-[#1b4b82]">
+                <History size={32} strokeWidth={2} />
               </div>
+              <div>
+                <h1 className="text-3xl font-black text-slate-800 tracking-tight leading-none mb-2 uppercase italic">Nhật ký của tôi</h1>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span> Phiên bản cá nhân</p>
+              </div>
+            </div>
+          </div>
 
-              <form onSubmit={handleSearch} className="flex items-center bg-white border border-slate-200 rounded-2xl p-1.5 shadow-sm w-full md:w-96 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                <input 
-                  type="text" 
-                  placeholder="Tìm kiếm từ khóa..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1 bg-transparent border-none px-4 py-2 text-sm font-bold focus:ring-0 outline-none"
-                />
-                <button type="submit" className="bg-indigo-600 text-white p-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-95">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </button>
+          <div className="max-w-6xl mx-auto">
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6 bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+              <form onSubmit={handleSearch} className="relative w-full md:w-96 group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-[#1b4b82] transition-colors" />
+                <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Tìm kiếm URL..." className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3 pl-12 pr-4 text-sm font-medium outline-none focus:bg-white focus:border-[#1b4b82] transition-all"/>
               </form>
             </div>
 
-            {/* Main Table */}
-            <div className="bg-white rounded-[40px] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.03)] overflow-hidden">
+            <div className="bg-white border border-slate-100 rounded-[32px] shadow-sm overflow-hidden">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Nội dung phân tích</th>
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Cảm xúc AI</th>
-                    <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Hành động</th>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <th className="p-6">Thời gian</th>
+                    <th className="p-6">Dữ liệu phân tích</th>
+                    <th className="p-6">Trạng thái</th>
+                    <th className="p-6 text-right">Hành động</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
                   {loading ? (
-                    <tr><td colSpan={3} className="px-8 py-24 text-center"><div className="inline-block w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></td></tr>
+                    <tr><td colSpan={4} className="p-20 text-center"><Loader2 size={32} className="text-indigo-500 animate-spin mx-auto"/></td></tr>
                   ) : historyData.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="px-8 py-32 text-center text-slate-300">
-                        <svg className="w-16 h-16 mx-auto mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <p className="text-[11px] font-black uppercase tracking-[0.3em]">Chưa có dữ liệu lịch sử nào</p>
-                      </td>
-                    </tr>
-                  ) : historyData.map((item) => (
-                    <tr key={item._id} className="hover:bg-indigo-50/20 transition-all group">
-                      <td className="px-8 py-6">
-                        <div className="flex flex-col">
-                          <span className="font-black text-slate-800 uppercase tracking-tight text-sm group-hover:text-indigo-600 transition-colors italic">
-                            {item.keyword || "KHÔNG RÕ TỪ KHÓA"}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase mt-1">
-                            {new Date(item.created_at).toLocaleString('vi-VN')}
-                          </span>
-                        </div>
-                      </td>
-                      
-                      <td className="px-8 py-6">
-                        <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${
-                          item.sentiment === 'Tích cực' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                          item.sentiment === 'Tiêu cực' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                          'bg-slate-50 text-slate-400 border-slate-100'
-                        }`}>
-                          {item.sentiment || 'Đã phân tích'}
-                        </span>
-                      </td>
-                      
-                      <td className="px-8 py-6 text-right">
-                        <div className="flex items-center justify-end gap-3">
-                          {/* NÚT TOGGLE BOOKMARK (POST/DELETE) */}
-                          <button 
-                            onClick={() => handleToggleBookmark(item._id, item.is_bookmarked)}
-                            className={`p-2.5 rounded-xl border transition-all duration-300 ${
-                              item.is_bookmarked 
-                              ? 'bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-100 scale-105' 
-                              : 'bg-white text-slate-200 border-slate-100 hover:text-amber-500 hover:border-amber-200'
-                            }`}
-                            title={item.is_bookmarked ? "Bỏ ghim" : "Ghim yêu thích"}
-                          >
-                            <svg className="w-4 h-4" fill={item.is_bookmarked ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.382-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                            </svg>
-                          </button>
-
-                          <button 
-                            onClick={() => navigate(`/history/${item._id}`)}
-                            className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-md active:scale-95"
-                          >
-                            Xem chi tiết
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                    <tr><td colSpan={4} className="p-20 text-center text-slate-400 font-medium">Chưa có lịch sử nào.</td></tr>
+                  ) : (
+                    historyData.map((log, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-6 whitespace-nowrap"><div className="flex items-center gap-2 text-[12px] font-bold text-slate-600"><Clock size={14} className="text-slate-400" />{new Date(log.created_at).toLocaleString('vi-VN')}</div></td>
+                        <td className="p-6">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shrink-0 shadow-sm">{getMethodIcon(log.method)}</div>
+                            <div>
+                              <h3 className="font-bold text-slate-800 text-[13px] line-clamp-1 max-w-[300px]">{log.target_url || log.keyword || "Cào dữ liệu"}</h3>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Method: {log.method || "AUTO"}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-6">
+                          {log.status === 'success' ? <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"><CheckCircle2 size={12}/> THÀNH CÔNG</span> : <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-200 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest"><XCircle size={12}/> THẤT BẠI</span>}
+                        </td>
+                        <td className="p-6 text-right">
+                          <button onClick={() => navigate(`/history/${log._id}`)} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-[#1b4b82] transition-all shadow-md active:scale-95">Xem chi tiết</button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
-              
-              {/* Pagination */}
-              <div className="p-8 bg-slate-50/30 border-t border-slate-100 flex items-center justify-between">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Trang {pagination.page} / {Math.max(1, Math.ceil(pagination.total / pagination.limit))}
-                </p>
+              <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trang {pagination.page}</p>
                 <div className="flex gap-2">
-                  <button 
-                    disabled={pagination.page === 1} 
-                    onClick={() => fetchHistory(pagination.page - 1, searchTerm)}
-                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all active:scale-95"
-                  >
-                    Trước
-                  </button>
-                  <button 
-                    disabled={pagination.page * pagination.limit >= pagination.total}
-                    onClick={() => fetchHistory(pagination.page + 1, searchTerm)}
-                    className="px-5 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase hover:bg-indigo-50 disabled:opacity-30 transition-all active:scale-95"
-                  >
-                    Sau
-                  </button>
+                  <button disabled={pagination.page <= 1} onClick={() => fetchHistory(pagination.page - 1, searchTerm)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase disabled:opacity-30">Trước</button>
+                  <button disabled={pagination.page * pagination.limit >= pagination.total} onClick={() => fetchHistory(pagination.page + 1, searchTerm)} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase disabled:opacity-30">Sau</button>
                 </div>
               </div>
             </div>

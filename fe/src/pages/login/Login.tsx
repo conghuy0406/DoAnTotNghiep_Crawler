@@ -34,52 +34,35 @@ const Login = () => {
     formData.append('password', password);
 
     try {
-      // 1. Gửi request đăng nhập lấy Token (Sử dụng đường dẫn tương đối)
       const response = await axios.post('/api/v1/auth/login', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (response.data.access_token) {
-        const { access_token, token_type } = response.data;
+        // 🌟 Lấy trực tiếp role và full_name từ API Login
+        const { access_token, token_type, role, full_name } = response.data;
 
-        // Lưu chìa khóa vào LocalStorage
+        // Lưu vào LocalStorage
         localStorage.setItem('token', access_token);
         localStorage.setItem('token_type', token_type);
+        localStorage.setItem('role', role || 'user'); // Đã bắt được role admin ở đây
+        localStorage.setItem('full_name', full_name || username);
+        localStorage.setItem('username', full_name || username); // Dự phòng cho các component cũ
+        
+        // Xử lý ghi nhớ mật khẩu
+        if (rememberMe) {
+          localStorage.setItem('remembered_user', username);
+          localStorage.setItem('remembered_key', window.btoa(password));
+        } else {
+          localStorage.removeItem('remembered_user');
+          localStorage.removeItem('remembered_key');
+        }
 
-        // 2. TỰ ĐỘNG GỌI API LẤY THÔNG TIN NGƯỜI DÙNG THẬT TỪ DATABASE
-        try {
-          const meResponse = await axios.get('/api/v1/auth/me', {
-            headers: { Authorization: `Bearer ${access_token}` }
-          });
-          
-          const userData = meResponse.data;
-          
-          // Lưu ID, Tên và Quyền hạn thực tế của user
-          localStorage.setItem('user_id', userData.id);
-          localStorage.setItem('username', userData.full_name || userData.email);
-          localStorage.setItem('role', userData.role || 'user');
-          
-          // Xử lý ghi nhớ mật khẩu
-          if (rememberMe) {
-            localStorage.setItem('remembered_user', username);
-            localStorage.setItem('remembered_key', window.btoa(password));
-          } else {
-            localStorage.removeItem('remembered_user');
-            localStorage.removeItem('remembered_key');
-          }
-
-          // Điều hướng dựa trên quyền (Role)
-          if (userData.role === 'admin') {
-            navigate('/dashboard');
-          } else {
-            navigate('/home');
-          }
-
-        } catch (meError) {
-          console.error("Không lấy được thông tin người dùng:", meError);
-          // Fallback phòng hờ trường hợp API /me bị lỗi
-          localStorage.setItem('username', username);
-          navigate('/home');
+        // Điều hướng dựa trên quyền (Role)
+        if (role === 'admin') {
+          navigate('/dashboard'); // 👑 Bay thẳng vào trang Admin
+        } else {
+          navigate('/home');      // 👨‍💻 Bay vào trang User
         }
       }
     } catch (error: any) {

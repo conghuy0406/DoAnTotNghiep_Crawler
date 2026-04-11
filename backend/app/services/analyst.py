@@ -1,6 +1,6 @@
 import json
 import time  # 🌟 Bắt buộc phải import time để dùng tính năng chờ (sleep)
-from google import genai  
+from google import genai
 from app.core.config import GOOGLE_API_KEY
 
 # ==========================================

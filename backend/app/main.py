@@ -13,7 +13,7 @@ import requests
 from bs4 import BeautifulSoup
 
 # --- THƯ VIỆN BÊN THỨ 3 ---
-import google.generativeai as genai
+from google import genai
 from pydantic import BaseModel, field_validator
 from typing import Optional, Dict, Any, List
 from playwright.sync_api import sync_playwright
@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
 
 # Import các Router và Dependency bảo mật từ dự án của bạn
-from app.api import crawl, auth, source, history, bookmarks, export 
+from app.api import crawl, auth, source, history, bookmarks, export ,ai_router
 from app.celery_worker import run_smart_crawl_task, celery_app
 from app.api.auth import get_current_user  # 🔒 Lấy hàm kiểm tra Token từ auth.py
 
@@ -54,6 +54,7 @@ app.include_router(source.router, prefix="/api/v1/sources", tags=["Source Config
 app.include_router(history.router)
 app.include_router(bookmarks.router)
 app.include_router(export.router)
+app.include_router(ai_router.router)
 
 @app.get("/")
 async def root():
@@ -439,8 +440,10 @@ async def test_crawl_html(payload: HtmlPayload, current_user: dict = Depends(get
 # =====================================================================
 # ĐỈNH CAO: SMART CRAWL BẰNG GEMINI AI (100% TRÍ TUỆ NHÂN TẠO)
 # =====================================================================
+from google import genai 
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyBPz3Wzlxaf7U8DYOLJAUSC0Yv0wnXghOw").strip() 
-genai.configure(api_key=GEMINI_API_KEY)
+smart_client = genai.Client(api_key=GEMINI_API_KEY)
 
 class SmartPayload(BaseModel):
     url: str
@@ -537,8 +540,10 @@ def run_smart_auto_crawl(data: SmartPayload, user_id: str):
             """
 
             try:
-                model = genai.GenerativeModel('gemini-2.5-flash')
-                response = model.generate_content(prompt)
+                response = smart_client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=prompt
+                )
                 
                 if not response.text:
                     raise Exception("AI không trả về kết quả")
